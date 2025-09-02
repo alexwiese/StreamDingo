@@ -6,7 +6,7 @@ public class LibraryTests
     public void GetLibraryName_ReturnsCorrectName()
     {
         // Act
-        var result = Library.GetLibraryName();
+        string result = Library.GetLibraryName();
 
         // Assert
         result.Should().Be("StreamDingo");
