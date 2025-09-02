@@ -79,8 +79,8 @@ StreamDingo is a .NET 8.0 web API application designed for streaming functionali
 ### Key Files
 - **`StreamDingo.sln`** - Solution file containing all projects
 - **`src/StreamDingo.Api/Program.cs`** - API application startup and configuration
-- **`src/StreamDingo.Core/StreamService.cs`** - Core streaming service implementation
-- **`tests/StreamDingo.Tests/StreamServiceTests.cs`** - Unit tests for streaming functionality
+- **`src/StreamDingo.Core/Class1.cs`** - Core streaming service implementation (contains StreamService class)
+- **`tests/StreamDingo.Tests/UnitTest1.cs`** - Unit tests for streaming functionality (contains StreamServiceTests class)
 
 ## Development Environment
 
