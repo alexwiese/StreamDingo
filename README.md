@@ -15,7 +15,7 @@
   </a>
   -->
   <a href="https://dotnet.microsoft.com/download/dotnet">
-    <img src="https://img.shields.io/badge/.NET-8.0%2B-512BD4?logo=.net" alt=".NET Version">
+    <img src="https://img.shields.io/badge/.NET-9.0%2B-512BD4?logo=.net" alt=".NET Version">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
@@ -176,7 +176,7 @@ builder.Services.AddStreamDingo(options =>
 
 ### Prerequisites
 
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) or later
+- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) or later
 - Optional: [Git](https://git-scm.com/) for source control
 
 ### Building
