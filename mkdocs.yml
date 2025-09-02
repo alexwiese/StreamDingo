@@ -101,6 +101,7 @@ nav:
     - Event Store: api/event-store.md
     - Snapshot Store: api/snapshot-store.md
     - Hash Provider: api/hash-provider.md
+    - Generated API: api/generated/index.md
   - Advanced:
     - Performance: advanced/performance.md
     - Benchmarks: advanced/benchmarks.md
