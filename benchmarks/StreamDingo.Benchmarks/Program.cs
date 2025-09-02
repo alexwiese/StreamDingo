@@ -1,10 +1,10 @@
-﻿using BenchmarkDotNet.Running;
+using BenchmarkDotNet.Running;
 
 namespace StreamDingo.Benchmarks;
 
-class Program
+internal class Program
 {
-    static void Main(string[] args)
+    private static void Main(string[] args)
     {
         BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
     }
