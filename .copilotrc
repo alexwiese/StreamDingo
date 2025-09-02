@@ -1,0 +1,42 @@
+# Copilot configuration file
+# This file provides GitHub Copilot with context about the project
+
+[copilot]
+# Project type - helps Copilot understand the codebase
+project_type = "dotnet"
+language = "csharp"
+
+# Project description - helps Copilot provide relevant suggestions
+description = "StreamDingo - A streaming platform API built with .NET"
+
+# Main technologies used in the project
+technologies = ["ASP.NET Core", "C#", "xUnit", "Entity Framework"]
+
+# Code style preferences
+[copilot.style]
+# Use modern C# features
+use_modern_csharp = true
+# Prefer async/await patterns
+prefer_async = true
+# Use nullable reference types
+use_nullable_reference_types = true
+# Follow Microsoft naming conventions
+use_microsoft_naming = true
+
+# Testing preferences
+[copilot.testing]
+# Prefer xUnit for unit tests
+testing_framework = "xUnit"
+# Include test data builders
+use_test_builders = true
+# Include integration tests suggestions
+suggest_integration_tests = true
+
+# Documentation preferences
+[copilot.docs]
+# Include XML documentation
+xml_docs = true
+# Include README suggestions
+readme_suggestions = true
+# Include inline comments for complex logic
+inline_comments = true

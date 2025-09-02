@@ -1,0 +1,46 @@
+# GitHub Copilot configuration for StreamDingo
+# This file configures GitHub Copilot settings for the repository
+
+# Enable Copilot suggestions for the entire repository
+enabled: true
+
+# Configure language-specific settings
+languages:
+  csharp:
+    enabled: true
+    # Enable advanced suggestions for C# development
+    advanced_suggestions: true
+  json:
+    enabled: true
+  yaml:
+    enabled: true
+  markdown:
+    enabled: true
+
+# Configure file patterns to include/exclude
+include_patterns:
+  - "src/**/*.cs"
+  - "tests/**/*.cs"
+  - "*.md"
+  - "*.json"
+  - "*.yml"
+  - "*.yaml"
+
+exclude_patterns:
+  - "bin/**"
+  - "obj/**"
+  - "**/bin/**"
+  - "**/obj/**"
+  - "*.tmp"
+
+# Enable context-aware suggestions
+context_aware: true
+
+# Configure suggestion preferences
+suggestion_preferences:
+  # Prefer modern C# patterns and best practices
+  prefer_modern_syntax: true
+  # Include unit test suggestions
+  include_test_suggestions: true
+  # Include documentation suggestions
+  include_documentation: true

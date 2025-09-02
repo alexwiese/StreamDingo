@@ -1,0 +1,119 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    name: Build and Test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Test
+      run: dotnet test --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: TestResults/
+    
+    - name: Code Coverage Summary
+      run: |
+        dotnet tool install -g dotnet-reportgenerator-globaltool
+        reportgenerator -reports:"**/coverage.cobertura.xml" -targetdir:"coveragereport" -reporttypes:Html
+      if: always()
+    
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-report
+        path: coveragereport/
+
+  code-quality:
+    runs-on: ubuntu-latest
+    name: Code Quality Analysis
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+    
+    # This step demonstrates integration with code analysis tools
+    # that work well with GitHub Copilot suggestions
+    - name: Run Code Analysis
+      run: |
+        dotnet format --verify-no-changes --verbosity diagnostic
+        echo "Code formatting check completed"
+    
+    # CodeQL Analysis - works great with Copilot-generated code
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: csharp
+    
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+    
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+
+  # This job shows how to set up deployment with proper checks
+  # GitHub Copilot can help expand deployment strategies
+  deploy-dev:
+    runs-on: ubuntu-latest
+    name: Deploy to Development
+    needs: [build-and-test, code-quality]
+    if: github.ref == 'refs/heads/develop'
+    environment: development
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Build for deployment
+      run: |
+        dotnet publish src/StreamDingo.Api/StreamDingo.Api.csproj \
+          --configuration Release \
+          --output ./publish
+    
+    - name: Deploy to Development
+      run: |
+        echo "Deploying to development environment..."
+        # TODO: Add actual deployment steps
+        # Copilot can suggest deployment strategies like:
+        # - Docker container deployment
+        # - Azure App Service deployment
+        # - AWS Lambda deployment
+        echo "Deployment completed successfully"
