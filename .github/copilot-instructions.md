@@ -61,7 +61,7 @@ If the repository contains only planning documents and no source code:
 
 ### Development Environment Setup
 
-- **Prerequisites:** .NET 8.0 SDK (verified available: .NET 8.0.119)
+- **Prerequisites:** .NET 9.0 SDK (verified available: .NET ??)
 - **IDE:** Compatible with Visual Studio 2022, Visual Studio Code, or Rider
 - **Git:** Required for version control (verified available)
 
@@ -69,40 +69,7 @@ If the repository contains only planning documents and no source code:
 
 ALWAYS test these scenarios after making changes to ensure the event sourcing functionality works correctly:
 
-1. **Basic Event Handler Testing:**
-   ```csharp
-   // Create a simple event and handler
-   var initialSnapshot = new TestSnapshot();
-   var testEvent = new TestEvent();
-   var handler = new TestEventHandler();
-   
-   var resultSnapshot = handler.Apply(initialSnapshot, testEvent);
-   
-   // Verify snapshot hash integrity
-   Assert.NotNull(resultSnapshot);
-   Assert.NotEqual(initialSnapshot.Hash, resultSnapshot.Hash);
-   ```
-
-2. **Event Replay Scenario:**
-   ```csharp
-   // Test event ordering changes and replay functionality
-   var events = new List<IEvent> { event1, event2, event3 };
-   var reorderedEvents = new List<IEvent> { event1, event3, event2 };
-   
-   var originalResult = EventSourcing.ReplayEvents(initialSnapshot, events);
-   var reorderedResult = EventSourcing.ReplayEvents(initialSnapshot, reorderedEvents);
-   
-   // Results should be different, triggering replay mechanism
-   ```
-
-3. **Hash Verification Scenario:**
-   ```csharp
-   // Test that hash changes in event handlers trigger replay
-   var handlerV1 = new TestEventHandler(); // Version 1
-   var handlerV2 = new TestEventHandlerModified(); // Version 2 with different logic
-   
-   // Verify that hash differences are detected and replay is triggered
-   ```
+TBA
 
 ### Running the Library
 
@@ -188,6 +155,7 @@ Based on `plan/implementation_plan.md`, focus on these core components:
 - **Architecture**: Event sourcing library focusing on snapshot-based replay with hash verification
 - **Testing Strategy**: Emphasize testing event replay scenarios and hash integrity
 - **No CI/CD**: No GitHub Actions workflows exist yet - will need to be created
+- Always run dotnet format after making code changes 
 
 ### Troubleshooting
 
