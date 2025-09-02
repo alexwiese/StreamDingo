@@ -79,6 +79,41 @@ jobs:
     - name: Run vulnerability scan
       run: dotnet list package --vulnerable --include-transitive || true
 
+  benchmark:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release --verbosity normal
+      
+    - name: Run benchmarks
+      run: |
+        cd benchmarks/StreamDingo.Benchmarks
+        timeout 180 dotnet run --configuration Release -- --job VeryShortRun --exporters json --memory || {
+          echo "Benchmark run completed or timed out"
+          exit 0
+        }
+      
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v4
+      with:
+        name: benchmark-results
+        path: benchmarks/StreamDingo.Benchmarks/BenchmarkDotNet.Artifacts/
+        retention-days: 7
+
   package:
     name: Package
     runs-on: ubuntu-latest

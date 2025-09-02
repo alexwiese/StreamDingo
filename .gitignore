@@ -416,3 +416,9 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# StreamDingo specific ignores
+# Benchmark results and artifacts
+benchmark-results/
+BenchmarkDotNet.Artifacts/
+*.benchmark.*
