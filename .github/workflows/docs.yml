@@ -36,9 +36,25 @@ jobs:
           pip install mkdocs-mermaid2-plugin
           pip install mkdocs-git-revision-date-localized-plugin
           pip install mkdocs-minify-plugin
+          pip install requests
+          pip install beautifulsoup4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Build project for API docs
+        run: dotnet build src/StreamDingo/StreamDingo.csproj
+
+      - name: Generate API documentation
+        run: python3 scripts/generate_api_docs.py src/StreamDingo/bin/Debug/net9.0/StreamDingo.xml docs/api/generated
 
       - name: Build documentation
         run: mkdocs build --clean --verbose
+
+      - name: Validate documentation links
+        run: python3 scripts/validate_links.py docs/
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
