@@ -340,7 +340,7 @@ jobs:
           });
           
           console.log('PR description updated with benchmark results');
-        env:
+      env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
     - name: Comment on performance regressions
