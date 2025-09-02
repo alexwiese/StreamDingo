@@ -1,0 +1,166 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  validate-tag:
+    name: Validate Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      
+    steps:
+    - name: Get version from tag
+      id: get_version
+      run: |
+        TAG=${GITHUB_REF#refs/tags/}
+        VERSION=${TAG#v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+        
+        # Validate semantic version format
+        if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+          echo "Invalid version format: $VERSION"
+          exit 1
+        fi
+
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    needs: validate-tag
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build solution
+      run: dotnet build --no-restore --configuration Release --verbosity normal
+      
+    - name: Run tests
+      run: dotnet test --no-build --configuration Release --verbosity normal --collect:"XPlat Code Coverage"
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [validate-tag, build-and-test]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Package for release
+      run: |
+        dotnet pack --no-restore --configuration Release \
+          --output ./release-artifacts \
+          -p:PackageVersion=${{ needs.validate-tag.outputs.version }} \
+          -p:AssemblyVersion=${{ needs.validate-tag.outputs.version }} \
+          -p:FileVersion=${{ needs.validate-tag.outputs.version }}
+      
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        # Get the tag and previous tag
+        CURRENT_TAG=${GITHUB_REF#refs/tags/}
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        echo "Current tag: $CURRENT_TAG"
+        echo "Previous tag: $PREVIOUS_TAG"
+        
+        # Create release notes
+        RELEASE_NOTES="## Release $CURRENT_TAG"
+        
+        if [[ -n "$PREVIOUS_TAG" ]]; then
+          echo "### Changes since $PREVIOUS_TAG" >> release_notes.md
+          git log --pretty=format:"- %s (%an)" "$PREVIOUS_TAG..$CURRENT_TAG" >> release_notes.md
+        else
+          echo "### Initial Release" >> release_notes.md
+          echo "This is the initial release of StreamDingo." >> release_notes.md
+        fi
+        
+        echo "" >> release_notes.md
+        echo "### Package Information" >> release_notes.md
+        echo "- **Package Version**: ${{ needs.validate-tag.outputs.version }}" >> release_notes.md
+        echo "- **Target Framework**: .NET 8.0" >> release_notes.md
+        echo "- **Package**: \`StreamDingo.${{ needs.validate-tag.outputs.version }}.nupkg\`" >> release_notes.md
+        
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ needs.validate-tag.outputs.version }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: ${{ contains(needs.validate-tag.outputs.version, '-') }}
+        
+    - name: Upload Release Assets
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./release-artifacts/StreamDingo.${{ needs.validate-tag.outputs.version }}.nupkg
+        asset_name: StreamDingo.${{ needs.validate-tag.outputs.version }}.nupkg
+        asset_content_type: application/zip
+
+  publish-nuget:
+    name: Publish to NuGet
+    runs-on: ubuntu-latest
+    needs: [validate-tag, create-release]
+    if: ${{ !contains(needs.validate-tag.outputs.version, '-') }} # Only publish stable releases
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Package for NuGet
+      run: |
+        dotnet pack --no-restore --configuration Release \
+          --output ./nuget-artifacts \
+          -p:PackageVersion=${{ needs.validate-tag.outputs.version }} \
+          -p:AssemblyVersion=${{ needs.validate-tag.outputs.version }} \
+          -p:FileVersion=${{ needs.validate-tag.outputs.version }}
+      
+    - name: Publish to NuGet
+      run: |
+        dotnet nuget push ./nuget-artifacts/*.nupkg \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+      if: env.NUGET_API_KEY != ''
+      env:
+        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

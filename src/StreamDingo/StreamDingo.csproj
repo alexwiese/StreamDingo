@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors />
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>StreamDingo</PackageId>
+    <Title>StreamDingo</Title>
+    <Authors>Alex Wiese</Authors>
+    <Description>A .NET library for event sourcing with hash-based integrity verification</Description>
+    <PackageTags>event-sourcing;cqrs;dotnet;library</PackageTags>
+    <RepositoryUrl>https://github.com/alexwiese/StreamDingo</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
