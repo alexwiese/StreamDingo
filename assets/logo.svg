@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="120" viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="streamGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00D4FF;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#0099FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0066FF;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="dingoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B35;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#F7931E;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background tech pattern -->
+  <rect x="0" y="0" width="400" height="120" fill="#0A0E1A"/>
+  
+  <!-- Streaming data lines -->
+  <g opacity="0.3">
+    <line x1="0" y1="30" x2="80" y2="30" stroke="url(#streamGradient)" stroke-width="2"/>
+    <line x1="90" y1="30" x2="170" y2="30" stroke="url(#streamGradient)" stroke-width="2"/>
+    <line x1="0" y1="45" x2="60" y2="45" stroke="url(#streamGradient)" stroke-width="2"/>
+    <line x1="70" y1="45" x2="150" y2="45" stroke="url(#streamGradient)" stroke-width="2"/>
+    <line x1="0" y1="75" x2="90" y2="75" stroke="url(#streamGradient)" stroke-width="2"/>
+    <line x1="100" y1="75" x2="180" y2="75" stroke="url(#streamGradient)" stroke-width="2"/>
+    <line x1="0" y1="90" x2="70" y2="90" stroke="url(#streamGradient)" stroke-width="2"/>
+    <line x1="80" y1="90" x2="160" y2="90" stroke="url(#streamGradient)" stroke-width="2"/>
+  </g>
+  
+  <!-- Stream arrows -->
+  <g opacity="0.6">
+    <polygon points="170,28 180,30 170,32" fill="url(#streamGradient)"/>
+    <polygon points="150,43 160,45 150,47" fill="url(#streamGradient)"/>
+    <polygon points="180,73 190,75 180,77" fill="url(#streamGradient)"/>
+    <polygon points="160,88 170,90 160,92" fill="url(#streamGradient)"/>
+  </g>
+  
+  <!-- Stylized Dingo head (geometric/tech style) -->
+  <g transform="translate(200, 15)">
+    <!-- Main head shape -->
+    <path d="M20 50 L40 35 L60 35 L75 50 L70 70 L25 70 Z" fill="url(#dingoGradient)" filter="url(#glow)"/>
+    
+    <!-- Ears -->
+    <path d="M30 35 L35 20 L45 30 Z" fill="url(#dingoGradient)" opacity="0.8"/>
+    <path d="M50 30 L60 20 L65 35 Z" fill="url(#dingoGradient)" opacity="0.8"/>
+    
+    <!-- Eyes (tech style - glowing dots) -->
+    <circle cx="40" cy="45" r="3" fill="#00D4FF" filter="url(#glow)"/>
+    <circle cx="55" cy="45" r="3" fill="#00D4FF" filter="url(#glow)"/>
+    
+    <!-- Tech details -->
+    <rect x="35" y="55" width="15" height="2" fill="#00D4FF" opacity="0.7"/>
+    <rect x="45" y="55" width="8" height="2" fill="#00D4FF" opacity="0.7"/>
+    <rect x="30" y="60" width="20" height="1" fill="#0099FF" opacity="0.5"/>
+  </g>
+  
+  <!-- StreamDingo Text -->
+  <g transform="translate(50, 60)">
+    <!-- Stream text -->
+    <text x="0" y="35" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="url(#streamGradient)" filter="url(#glow)">Stream</text>
+    
+    <!-- Dingo text -->
+    <text x="110" y="35" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="url(#dingoGradient)" filter="url(#glow)">Dingo</text>
+  </g>
+  
+  <!-- Tech accent elements -->
+  <g opacity="0.4">
+    <circle cx="320" cy="25" r="2" fill="#00D4FF"/>
+    <circle cx="340" cy="35" r="1.5" fill="#0099FF"/>
+    <circle cx="360" cy="20" r="1" fill="#00D4FF"/>
+    <rect x="320" y="80" width="60" height="1" fill="#0099FF"/>
+    <rect x="330" y="85" width="40" height="1" fill="#00D4FF" opacity="0.6"/>
+  </g>
+  
+  <!-- Data flow visualization -->
+  <g opacity="0.3" transform="translate(280, 40)">
+    <circle cx="10" cy="10" r="2" fill="#00D4FF">
+      <animate attributeName="opacity" values="0.3;1;0.3" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="20" cy="15" r="1.5" fill="#0099FF">
+      <animate attributeName="opacity" values="0.3;1;0.3" dur="2.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="30" cy="8" r="1" fill="#00D4FF">
+      <animate attributeName="opacity" values="0.3;1;0.3" dur="3s" repeatCount="indefinite"/>
+    </circle>
+    <line x1="8" y1="10" x2="32" y2="8" stroke="#00D4FF" stroke-width="1"/>
+  </g>
+</svg>
