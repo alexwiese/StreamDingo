@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/StreamDingo.Examples/StreamDingo.Examples.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/StreamDingo/StreamDingo.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/StreamDingo.Tests/StreamDingo.Tests.csproj" />
+  </Folder>
+</Solution>
