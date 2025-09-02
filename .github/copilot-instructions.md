@@ -16,9 +16,19 @@ The project has the following structure:
 
 ### Development Environment Setup
 
-- **Prerequisites:** .NET 8.0 SDK (currently using 8.0.119)
+- **Prerequisites:** .NET 9.0 SDK (currently using 9.0.304)
 - **IDE:** Compatible with Visual Studio 2022, Visual Studio Code, or Rider
 - **Git:** Required for version control (verified available)
+
+**CRITICAL .NET 9 SDK REQUIREMENT:**
+- **Always install .NET 9.0 latest SDK if not present** before trying to run any dotnet commands
+- **Installation command:**
+  ```bash
+  curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 9.0 --install-dir ~/.dotnet
+  export PATH="$HOME/.dotnet:$PATH"
+  ```
+- **Verification:** Run `dotnet --version` to confirm 9.0.x is available
+- **Required for all operations:** build, test, pack, restore, format
 
 ### Build and Test Commands
 
@@ -134,7 +144,7 @@ StreamDingo/
 │   └── StreamDingo.Examples/
 │       └── StreamDingo.Examples.csproj
 ├── README.md (comprehensive documentation)
-├── global.json (.NET 8.0 SDK configuration)
+├── global.json (.NET 9.0 SDK configuration)
 ├── .editorconfig (comprehensive C# formatting rules)
 └── .github/
     ├── copilot-instructions.md
@@ -159,7 +169,7 @@ Based on `plan/implementation_plan.md`, focus on these core components:
 - **Dependencies**: Will require alexwiese/hashstamp library (check if available on NuGet)
 - **Architecture**: Event sourcing library focusing on snapshot-based replay with hash verification
 - **Testing Strategy**: Emphasize testing event replay scenarios and hash integrity
-- **.NET Version**: Currently targeting .NET 8.0 (was downgraded from 9.0 due to SDK availability)
+- **.NET Version**: Currently targeting .NET 9.0 (latest version for best performance and features)
 - **Always run dotnet format after making code changes**
 
 ### Troubleshooting
@@ -170,7 +180,7 @@ Common issues and solutions:
 2. **Tests fail**: Ensure project references are correct in test project
 3. **Package creation fails**: Verify project metadata in .csproj file
 4. **Hash verification issues**: Ensure alexwiese/hashstamp is properly referenced
-5. **.NET Version Issues**: Ensure global.json matches available SDK version
+5. **.NET Version Issues**: Ensure .NET 9.0 SDK is installed and global.json matches available SDK version
 
 ### Reference Files
 
