@@ -116,7 +116,5 @@ extra:
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/alexwiese/StreamDingo
-    - icon: fontawesome/brands/nuget
-      link: https://www.nuget.org/packages/StreamDingo
 
 copyright: Copyright &copy; 2024 Alex Wiese - MIT License
