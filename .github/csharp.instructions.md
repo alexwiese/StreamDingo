@@ -6,7 +6,7 @@ applyTo: '**/*.cs'
 # C# Development
 
 ## C# Instructions
-- Always use the latest version C#, currently C# 13 features.
+- Always use the latest available C# version features, currently C# 13 with .NET 9.0.
 - Write clear and concise comments for each function.
 
 ## General Instructions
