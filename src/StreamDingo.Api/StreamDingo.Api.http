@@ -1,0 +1,6 @@
+@StreamDingo.Api_HostAddress = http://localhost:5155
+
+GET {{StreamDingo.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
