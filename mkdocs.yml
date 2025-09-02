@@ -1,0 +1,122 @@
+site_name: StreamDingo Documentation
+site_description: A high-performance .NET library for event sourcing with hash-based integrity verification
+site_author: Alex Wiese
+site_url: https://alexwiese.github.io/StreamDingo
+
+repo_name: alexwiese/StreamDingo
+repo_url: https://github.com/alexwiese/StreamDingo
+
+theme:
+  name: material
+  palette:
+    # Palette toggle for light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - content.code.annotate
+    - content.code.copy
+    - content.tabs.link
+
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+  - mermaid2
+  - git-revision-date-localized:
+      enable_creation_date: true
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+    - Basic Concepts: getting-started/concepts.md
+  - User Guide:
+    - Event Sourcing Basics: guide/event-sourcing.md
+    - Event Handlers: guide/event-handlers.md
+    - Snapshots: guide/snapshots.md
+    - Hash Integrity: guide/hash-integrity.md
+    - Event Replay: guide/event-replay.md
+    - Storage Providers: guide/storage-providers.md
+  - API Reference:
+    - Core Interfaces: api/interfaces.md
+    - Event Store: api/event-store.md
+    - Snapshot Store: api/snapshot-store.md
+    - Hash Provider: api/hash-provider.md
+  - Advanced:
+    - Performance: advanced/performance.md
+    - Benchmarks: advanced/benchmarks.md
+    - Custom Providers: advanced/custom-providers.md
+    - Migration Strategies: advanced/migrations.md
+  - Contributing:
+    - Development Setup: contributing/setup.md
+    - Contribution Guidelines: contributing/guidelines.md
+    - Code of Conduct: contributing/code-of-conduct.md
+    - Security: contributing/security.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/alexwiese/StreamDingo
+    - icon: fontawesome/brands/nuget
+      link: https://www.nuget.org/packages/StreamDingo
+
+copyright: Copyright &copy; 2024 Alex Wiese - MIT License
