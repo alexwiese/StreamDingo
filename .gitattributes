@@ -1,17 +1,18 @@
 # Set default behavior for all files
 * text=auto
 
-# Force text files to have LF line endings on checkout
-*.cs text eol=lf
-*.csproj text eol=lf
-*.sln text eol=lf
-*.md text eol=lf
-*.yml text eol=lf
-*.yaml text eol=lf
-*.json text eol=lf
-*.xml text eol=lf
-*.txt text eol=lf
-*.config text eol=lf
+# Force text files to have CRLF line endings on checkout
+*.cs text eol=crlf
+*.csproj text eol=crlf
+*.sln text eol=crlf
+*.slnx text eol=crlf
+*.md text eol=crlf
+*.yml text eol=crlf
+*.yaml text eol=crlf
+*.json text eol=crlf
+*.xml text eol=crlf
+*.txt text eol=crlf
+*.config text eol=crlf
 
 # Force binary files to be binary
 *.dll binary
