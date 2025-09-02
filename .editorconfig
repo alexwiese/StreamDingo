@@ -209,7 +209,7 @@ csharp_style_prefer_primary_constructors = true:suggestion
 # Namespace preferences
 csharp_style_namespace_declarations = file_scoped:warning
 
-# Allow experimental features for C# 14
+# Allow experimental features for modern C#
 dotnet_style_allow_multiple_blank_lines_experimental = false:warning
 dotnet_style_allow_statement_immediately_after_block_experimental = false:warning
 csharp_style_allow_embedded_statements_on_same_line_experimental = false:warning
@@ -492,7 +492,7 @@ dotnet_analyzer_diagnostic.CA2258.severity = warning
 dotnet_analyzer_diagnostic.CA2259.severity = warning
 dotnet_analyzer_diagnostic.CA2260.severity = warning
 
-# Enable nullable context globally for C# 14 projects
+# Enable nullable context globally for modern C# projects
 dotnet_analyzer_diagnostic.CS8600.severity = warning
 dotnet_analyzer_diagnostic.CS8601.severity = warning
 dotnet_analyzer_diagnostic.CS8602.severity = warning

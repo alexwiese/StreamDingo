@@ -7,49 +7,37 @@ Always reference these instructions first and fallback to search or bash command
 
 ## Working Effectively
 
-### Initial Project Setup (Greenfield)
-If the repository contains only planning documents and no source code:
+### Current Project Status
+The project has the following structure:
+- **Main Library**: `src/StreamDingo/` - Core event sourcing library
+- **Tests**: `tests/StreamDingo.Tests/` - Unit and integration tests
+- **Examples**: `examples/StreamDingo.Examples/` - Usage examples
+- **Documentation**: Comprehensive README and API documentation
 
-- **Bootstrap a new .NET library project:**
-  ```bash
-  dotnet new classlib -n StreamDingo -f net8.0
-  dotnet new sln -n StreamDingo
-  dotnet sln add StreamDingo/StreamDingo.csproj
-  ```
+### Development Environment Setup
 
-- **Create test project:**
-  ```bash
-  dotnet new xunit -n StreamDingo.Tests -f net8.0
-  dotnet sln add StreamDingo.Tests/StreamDingo.Tests.csproj
-  cd StreamDingo.Tests
-  dotnet add reference ../StreamDingo/StreamDingo.csproj
-  ```
-
-- **Add required dependencies (once project exists):**
-  ```bash
-  cd StreamDingo
-  dotnet add package System.Text.Json
-  # Add alexwiese/hashstamp when available on NuGet
-  ```
+- **Prerequisites:** .NET 8.0 SDK (currently using 8.0.119)
+- **IDE:** Compatible with Visual Studio 2022, Visual Studio Code, or Rider
+- **Git:** Required for version control (verified available)
 
 ### Build and Test Commands
 
 - **Build the solution:**
   ```bash
-  dotnet build
+  dotnet build src/StreamDingo/StreamDingo.csproj
   ```
   - Takes approximately 10-15 seconds. NEVER CANCEL. Set timeout to 2+ minutes.
 
 - **Run all tests:**
   ```bash
-  dotnet test
+  dotnet test tests/StreamDingo.Tests/StreamDingo.Tests.csproj
   ```
   - Takes approximately 5-10 seconds for basic tests. NEVER CANCEL. Set timeout to 2+ minutes.
   - For comprehensive test suites with integration tests, may take 1-5 minutes. Set timeout to 10+ minutes.
 
 - **Create NuGet package:**
   ```bash
-  dotnet pack --configuration Release
+  dotnet pack src/StreamDingo/StreamDingo.csproj --configuration Release
   ```
   - Takes approximately 15-30 seconds. NEVER CANCEL. Set timeout to 2+ minutes.
 
@@ -59,26 +47,39 @@ If the repository contains only planning documents and no source code:
   ```
   - Takes approximately 5-20 seconds depending on dependencies. NEVER CANCEL. Set timeout to 2+ minutes.
 
-### Development Environment Setup
-
-- **Prerequisites:** .NET 9.0 SDK (verified available: .NET ??)
-- **IDE:** Compatible with Visual Studio 2022, Visual Studio Code, or Rider
-- **Git:** Required for version control (verified available)
-
-### Validation Scenarios
-
-ALWAYS test these scenarios after making changes to ensure the event sourcing functionality works correctly:
-
-TBA
-
 ### Running the Library
 
 Since this is a library project and not an application:
 
 - **Cannot run directly** - this is a class library, not an executable application
-- **Test the library** using the test project: `dotnet test`
+- **Test the library** using the test project: `dotnet test tests/StreamDingo.Tests/StreamDingo.Tests.csproj`
 - **Use the library** by referencing it in other .NET projects
-- **Package the library** for distribution: `dotnet pack`
+- **Package the library** for distribution: `dotnet pack src/StreamDingo/StreamDingo.csproj --configuration Release`
+
+### Validation Scenarios
+
+ALWAYS test these scenarios after making changes to ensure the event sourcing functionality works correctly:
+
+1. **Basic Event Sourcing Flow**:
+   - Create event handlers that take previous snapshot + event → new snapshot
+   - Append events to streams
+   - Replay events from beginning to rebuild current state
+   - Verify snapshots are created correctly
+
+2. **Hash Integrity Verification**:
+   - Event handler code changes should be detected via hash comparison
+   - Snapshot hashes should verify data integrity
+   - Event hashes should prevent tampering
+
+3. **Event Replay Scenarios**:
+   - Event order changes should trigger replay from last stable snapshot
+   - Event handler code changes should replay affected event types
+   - Replay should stop when snapshot hashes stabilize
+
+4. **Snapshot Management**:
+   - Automatic snapshots should be created at configured intervals
+   - Manual snapshot creation should work correctly
+   - Last snapshot should represent current entity state
 
 ### Common Tasks
 
@@ -95,19 +96,19 @@ Since this is a library project and not an application:
 #### Package Management
 - **Add new package:**
   ```bash
-  dotnet add package <PackageName>
+  dotnet add src/StreamDingo package <PackageName>
   ```
 - **Remove package:**
   ```bash
-  dotnet remove package <PackageName>
+  dotnet remove src/StreamDingo package <PackageName>
   ```
 - **List packages:**
   ```bash
-  dotnet list package
+  dotnet list src/StreamDingo package
   ```
 
 #### Version Management
-- **Update project version** in StreamDingo.csproj:
+- **Update project version** in `src/StreamDingo/StreamDingo.csproj`:
   ```xml
   <PropertyGroup>
     <Version>1.0.0</Version>
@@ -115,62 +116,68 @@ Since this is a library project and not an application:
   </PropertyGroup>
   ```
 
-### Project Structure (Once Implemented)
+### Project Structure
 
-Expected project layout:
+Current project layout:
 ```
 StreamDingo/
 ├── src/
 │   └── StreamDingo/
-│       ├── EventSourcing/
-│       ├── Snapshots/
-│       ├── Hashing/
+│       ├── Library.cs (placeholder - to be replaced)
 │       └── StreamDingo.csproj
 ├── tests/
 │   └── StreamDingo.Tests/
-│       ├── EventSourcing/
-│       ├── Integration/
+│       ├── GlobalUsings.cs
+│       ├── LibraryTests.cs
 │       └── StreamDingo.Tests.csproj
-├── StreamDingo.sln
-├── README.md
+├── examples/
+│   └── StreamDingo.Examples/
+│       └── StreamDingo.Examples.csproj
+├── README.md (comprehensive documentation)
+├── global.json (.NET 8.0 SDK configuration)
+├── .editorconfig (comprehensive C# formatting rules)
 └── .github/
-    └── workflows/
-        └── ci.yml
+    ├── copilot-instructions.md
+    ├── csharp.instructions.md
+    └── devops.instructions.md
 ```
 
 ### Key Implementation Areas
 
 Based on `plan/implementation_plan.md`, focus on these core components:
 
-1. **Event Handlers**: Each takes previous snapshot, applies logic, generates mutated snapshot
+1. **Event Handlers**: Pure functions that take (previous snapshot, event) → new snapshot
 2. **Hash Management**: Using alexwiese/hashstamp for event handler code hashing
 3. **Snapshot Management**: Each snapshot has a hash, last snapshot is current entity value
 4. **Event Replay Logic**: Handle event order changes and code hash changes
 5. **Integrity Verification**: Verify integrity of code, diffs, and snapshots
+6. **Event Store**: Core storage and retrieval of events and snapshots
 
 ### Important Notes
 
-- **Development Status**: This is currently a greenfield project with only planning documents
+- **Current Status**: Basic project structure with placeholder code, ready for implementation
 - **Dependencies**: Will require alexwiese/hashstamp library (check if available on NuGet)
 - **Architecture**: Event sourcing library focusing on snapshot-based replay with hash verification
 - **Testing Strategy**: Emphasize testing event replay scenarios and hash integrity
-- **No CI/CD**: No GitHub Actions workflows exist yet - will need to be created
-- Always run dotnet format after making code changes 
+- **.NET Version**: Currently targeting .NET 8.0 (was downgraded from 9.0 due to SDK availability)
+- **Always run dotnet format after making code changes**
 
 ### Troubleshooting
 
 Common issues and solutions:
 
-1. **Build fails**: Run `dotnet restore` first, then `dotnet build`
+1. **Build fails**: Run `dotnet restore` first, then `dotnet build src/StreamDingo/StreamDingo.csproj`
 2. **Tests fail**: Ensure project references are correct in test project
 3. **Package creation fails**: Verify project metadata in .csproj file
 4. **Hash verification issues**: Ensure alexwiese/hashstamp is properly referenced
+5. **.NET Version Issues**: Ensure global.json matches available SDK version
 
 ### Reference Files
 
 - Use `.github/csharp.instructions.md` for C#-specific coding guidelines
 - Use `.github/devops.instructions.md` for DevOps principles and CI/CD guidance
 - Refer to `plan/implementation_plan.md` for detailed architecture and requirements
+- Follow the comprehensive README.md for user-facing documentation standards
 
 ### Timing Expectations
 
