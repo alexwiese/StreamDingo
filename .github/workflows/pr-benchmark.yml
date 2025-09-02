@@ -340,8 +340,8 @@ jobs:
           });
           
           console.log('PR description updated with benchmark results');
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
     - name: Comment on performance regressions
       if: steps.compare.outputs.report_generated == 'true'
