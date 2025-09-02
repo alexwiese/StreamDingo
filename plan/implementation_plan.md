@@ -3,7 +3,7 @@ context: .NET library to enable event sourcing.
 Each event handler takes the prev snapshot as input, applies the logic which generates the mutated snapshot. 
 The last snapshot is the current value of that entity. 
 Each event handler code has a hash
-This is achieved using the library alexwiese/hashstamp
+This is achieved using the library alexwiese/hashstamp (in github)
 Each snapshot has a hash
 
 If event order changes then go back to previous key snapshot, replay events until last reordered event, then replay until resulting snapshot has does not change 
