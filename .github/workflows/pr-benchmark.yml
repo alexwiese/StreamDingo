@@ -21,6 +21,15 @@ on:
         required: false
         default: '*'
         type: string
+      benchmark_mode:
+        description: 'Benchmark mode for CI speed'
+        required: false
+        default: 'essential'
+        type: choice
+        options:
+          - 'essential'
+          - 'minimal'
+          - 'fast'
 
 permissions:
   contents: read
@@ -34,6 +43,20 @@ jobs:
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-benchmark') }}
     
     steps:
+    - name: Check if benchmarks are needed
+      id: check_benchmarks
+      run: |
+        # Use minimal benchmarks for docs-only changes, full benchmarks for code changes
+        if [[ "${{ contains(github.event.pull_request.labels.*.name, 'documentation') }}" == "true" ]] || 
+           [[ "${{ github.event.pull_request.changed_files }}" =~ ^(docs/|README|CHANGELOG|\.md$) ]]; then
+          echo "benchmark_mode=minimal" >> $GITHUB_OUTPUT
+          echo "Using minimal benchmarks for documentation changes"
+        else
+          echo "benchmark_mode=${{ github.event.inputs.benchmark_mode || 'essential' }}" >> $GITHUB_OUTPUT
+          echo "Using full benchmarks for code changes"
+        fi
+    
+    steps:
     - name: Checkout PR branch
       uses: actions/checkout@v4
       with:
@@ -44,8 +67,26 @@ jobs:
       with:
         dotnet-version: '9.0.x'
         
+    - name: Cache .NET packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+        
     - name: Restore dependencies
       run: dotnet restore
+      
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: |
+          **/bin/Release
+          **/obj
+        key: ${{ runner.os }}-build-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-build-
       
     - name: Build solution
       run: dotnet build --no-restore --configuration Release --verbosity normal
@@ -55,9 +96,15 @@ jobs:
       run: |
         cd benchmarks/StreamDingo.Benchmarks
         
-        # Run benchmarks with short job for CI speed
+        # Use CI-optimized benchmarks for speed
+        # Use dynamic mode based on change type detection
+        BENCHMARK_MODE="${{ steps.check_benchmarks.outputs.benchmark_mode }}"
         BENCHMARK_FILTER="${{ github.event.inputs.benchmark_filter || '*' }}"
-        timeout 300 dotnet run --configuration Release -- --job short --exporters json --filter "$BENCHMARK_FILTER" --memory || {
+        
+        echo "Running benchmarks in CI mode: $BENCHMARK_MODE with filter: $BENCHMARK_FILTER"
+        
+        # Run with shorter timeout for CI-optimized benchmarks
+        timeout 120 dotnet run --configuration Release -- --ci-mode "$BENCHMARK_MODE" --exporters json --filter "$BENCHMARK_FILTER" || {
           echo "Benchmark run timed out or failed, but continuing with available results"
           exit 0
         }
@@ -95,6 +142,7 @@ jobs:
     - name: Build main branch solution
       run: |
         cd main-branch
+        # Use cache if available, otherwise restore
         dotnet restore
         dotnet build --no-restore --configuration Release --verbosity normal
         
@@ -103,9 +151,14 @@ jobs:
       run: |
         cd main-branch/benchmarks/StreamDingo.Benchmarks
         
-        # Run benchmarks with short job for CI speed  
+        # Use same CI-optimized configuration as PR branch for fair comparison
+        BENCHMARK_MODE="${{ steps.check_benchmarks.outputs.benchmark_mode }}"
         BENCHMARK_FILTER="${{ github.event.inputs.benchmark_filter || '*' }}"
-        timeout 300 dotnet run --configuration Release -- --job short --exporters json --filter "$BENCHMARK_FILTER" --memory || {
+        
+        echo "Running main branch benchmarks in CI mode: $BENCHMARK_MODE with filter: $BENCHMARK_FILTER"
+        
+        # Run with shorter timeout for CI-optimized benchmarks  
+        timeout 120 dotnet run --configuration Release -- --ci-mode "$BENCHMARK_MODE" --exporters json --filter "$BENCHMARK_FILTER" || {
           echo "Benchmark run timed out or failed, but continuing with available results"
           exit 0
         }
@@ -215,6 +268,8 @@ jobs:
             
             report = []
             report.append("## 📊 Performance Benchmark Results")
+            report.append("")
+            report.append(f"🚀 **CI-Optimized Benchmarks**: Using fast configuration for quick PR feedback")
             report.append("")
             report.append("This PR introduces the following performance changes:")
             report.append("")
