@@ -1,8 +1,7 @@
 using Statiq.App;
-using Statiq.Docs;
+using Statiq.Web;
 
 return await Bootstrapper
     .Factory
-    .CreateDocs(args)
-    .AddSetting("Theme", "Samson")
+    .CreateWeb(args)
     .RunAsync();

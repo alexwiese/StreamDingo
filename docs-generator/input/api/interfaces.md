@@ -1,10 +1,14 @@
+---
+Layout: _Layout
+Title: interfaces
+---
 # Core Interfaces
 
 StreamDingo's core interfaces provide the foundation for event sourcing functionality.
 
 !!! info "Auto-Generated Documentation"
     Detailed API documentation is automatically generated from XML comments in the source code. 
-    See the [Generated API Reference](generated/index.md) for complete documentation of all public types and members.
+    See the [Generated API Reference](generated/index.html) for complete documentation of all public types and members.
 
 ## Core Interface Overview
 

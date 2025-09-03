@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: migrations
+---
 # Migration Strategies
 
 Strategies for handling schema changes and system evolution in event-sourced systems.

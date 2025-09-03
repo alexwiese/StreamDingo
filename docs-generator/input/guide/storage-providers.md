@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: storage-providers
+---
 # Storage Providers
 
 StreamDingo supports multiple storage providers for events and snapshots, allowing you to choose the best backend for your needs.
@@ -72,5 +76,5 @@ public class CustomEventStore : IEventStore
 
 ## Next Steps
 
-- Learn about [Custom Providers](../advanced/custom-providers.md)
-- Explore [Performance](../advanced/performance.md) optimization
+- Learn about [Custom Providers](../advanced/custom-providers.html)
+- Explore [Performance](../advanced/performance.html) optimization

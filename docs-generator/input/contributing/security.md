@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: security
+---
 # Security Policy
 
 ## Reporting Security Vulnerabilities

@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: installation
+---
 # Installation
 
 StreamDingo is available as a NuGet package and requires .NET 9.0 or later.
@@ -42,5 +46,5 @@ dotnet build
 
 ## Next Steps
 
-- [Quick Start Guide](quickstart.md) - Build your first event-sourced application
-- [Basic Concepts](concepts.md) - Understand the core principles
+- [Quick Start Guide](quickstart.html) - Build your first event-sourced application
+- [Basic Concepts](concepts.html) - Understand the core principles

@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: snapshots
+---
 # Snapshots
 
 Snapshots in StreamDingo provide performance optimization by caching aggregate state at specific points, reducing the need to replay all events from the beginning.
@@ -420,7 +424,7 @@ public async Task<TAggregate?> ReplayEventsAsync<TAggregate>(string streamId)
 
 ## Next Steps
 
-- Learn about [Hash Integrity](hash-integrity.md) verification in detail
-- Understand [Event Replay](event-replay.md) strategies  
-- Explore [Storage Providers](storage-providers.md) for different backends
-- See [Performance](../advanced/performance.md) optimization techniques
+- Learn about [Hash Integrity](hash-integrity.html) verification in detail
+- Understand [Event Replay](event-replay.html) strategies  
+- Explore [Storage Providers](storage-providers.html) for different backends
+- See [Performance](../advanced/performance.html) optimization techniques

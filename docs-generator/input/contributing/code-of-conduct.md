@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: code-of-conduct
+---
 # Code of Conduct
 
 ## Our Pledge

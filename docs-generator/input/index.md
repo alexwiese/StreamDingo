@@ -1,3 +1,8 @@
+---
+Layout: _Layout
+Title: Home
+---
+
 # StreamDingo Documentation
 
 Welcome to the official documentation for StreamDingo, a high-performance .NET library for event sourcing with hash-based integrity verification and snapshot-based replay.
@@ -60,9 +65,9 @@ Designed for high-throughput scenarios with minimal memory allocations and optim
 
 ## Getting Started
 
-1. **[Installation](getting-started/installation.md)** - Add StreamDingo to your project
-2. **[Quick Start](getting-started/quickstart.md)** - Build your first event-sourced application
-3. **[Basic Concepts](getting-started/concepts.md)** - Understand the core principles
+1. **[Installation](getting-started/installation.html)** - Add StreamDingo to your project
+2. **[Quick Start](getting-started/quickstart.html)** - Build your first event-sourced application
+3. **[Basic Concepts](getting-started/concepts.html)** - Understand the core principles
 
 ## Architecture Overview
 

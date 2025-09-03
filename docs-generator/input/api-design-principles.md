@@ -1,4 +1,8 @@
 ---
+Layout: _Layout
+Title: api-design-principles
+---
+---
 ---
 # StreamDingo - API Design Principles
 

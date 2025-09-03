@@ -1,4 +1,8 @@
 ---
+Layout: _Layout
+Title: development-environment
+---
+---
 ---
 # StreamDingo - Development Environment Setup
 

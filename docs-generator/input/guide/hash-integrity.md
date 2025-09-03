@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: hash-integrity
+---
 # Hash Integrity
 
 StreamDingo uses hash-based integrity verification to ensure the reliability of your event-sourced system by detecting changes in event handler code and verifying data integrity.
@@ -413,7 +417,7 @@ public async Task<UserCreated> CreateValidatedUserEvent(string name, string emai
 
 ## Next Steps
 
-- Learn about [Event Replay](event-replay.md) strategies
-- Understand [Storage Providers](storage-providers.md) and their integrity features
-- Explore [Performance](../advanced/performance.md) optimization techniques
-- See [Migration Strategies](../advanced/migrations.md) for handling schema changes
+- Learn about [Event Replay](event-replay.html) strategies
+- Understand [Storage Providers](storage-providers.html) and their integrity features
+- Explore [Performance](../advanced/performance.html) optimization techniques
+- See [Migration Strategies](../advanced/migrations.html) for handling schema changes
