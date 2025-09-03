@@ -11,7 +11,7 @@ GitHubOwner: alexwiese
 GitHubName: StreamDingo
 
 # Theme settings
-Theme: CleanBlog
+Theme: Samson
 EditLink: https://github.com/alexwiese/StreamDingo/edit/main/{Document.Source.Value}
 
 # Search
@@ -31,3 +31,14 @@ ProjectFiles:
 
 # Input settings - disable front matter parsing for files without it
 ParseYaml: false
+
+# Fix relative links to use .html instead of .md
+MarkdownRenderExtensions: true
+MarkdownRelativeLinksAsAbsolute: false
+ValidateRelativeLinks: true
+
+# Additional theme settings
+BootstrapTheme: true
+
+# Configure link resolution
+LinkHideExtensions: false
