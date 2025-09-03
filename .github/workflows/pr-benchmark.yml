@@ -41,13 +41,13 @@ jobs:
     name: Performance Benchmarks
     runs-on: ubuntu-latest
     if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-benchmark') }}
-    
+
     steps:
     - name: Check if benchmarks are needed
       id: check_benchmarks
       run: |
         # Use minimal benchmarks for docs-only changes, full benchmarks for code changes
-        if [[ "${{ contains(github.event.pull_request.labels.*.name, 'documentation') }}" == "true" ]] || 
+        if [[ "${{ contains(github.event.pull_request.labels.*.name, 'documentation') }}" == "true" ]] ||
            [[ "${{ github.event.pull_request.changed_files }}" =~ ^(docs/|README|CHANGELOG|\.md$) ]]; then
           echo "benchmark_mode=minimal" >> $GITHUB_OUTPUT
           echo "Using minimal benchmarks for documentation changes"
@@ -55,18 +55,16 @@ jobs:
           echo "benchmark_mode=${{ github.event.inputs.benchmark_mode || 'essential' }}" >> $GITHUB_OUTPUT
           echo "Using full benchmarks for code changes"
         fi
-    
-    steps:
     - name: Checkout PR branch
       uses: actions/checkout@v4
       with:
         ref: ${{ github.event.pull_request.head.sha }}
-        
+
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '9.0.x'
-        
+
     - name: Cache .NET packages
       uses: actions/cache@v4
       with:
@@ -74,10 +72,10 @@ jobs:
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json', '**/*.csproj') }}
         restore-keys: |
           ${{ runner.os }}-nuget-
-        
+
     - name: Restore dependencies
       run: dotnet restore
-      
+
     - name: Cache build artifacts
       uses: actions/cache@v4
       with:
@@ -87,31 +85,31 @@ jobs:
         key: ${{ runner.os }}-build-${{ github.sha }}
         restore-keys: |
           ${{ runner.os }}-build-
-      
+
     - name: Build solution
       run: dotnet build --no-restore --configuration Release --verbosity normal
-      
+
     - name: Run PR benchmarks
       id: pr_benchmark
       run: |
         cd benchmarks/StreamDingo.Benchmarks
-        
+
         # Use CI-optimized benchmarks for speed
         # Use dynamic mode based on change type detection
         BENCHMARK_MODE="${{ steps.check_benchmarks.outputs.benchmark_mode }}"
         BENCHMARK_FILTER="${{ github.event.inputs.benchmark_filter || '*' }}"
-        
+
         echo "Running benchmarks in CI mode: $BENCHMARK_MODE with filter: $BENCHMARK_FILTER"
-        
+
         # Run with shorter timeout for CI-optimized benchmarks
         timeout 120 dotnet run --configuration Release -- --ci-mode "$BENCHMARK_MODE" --exporters json --filter "$BENCHMARK_FILTER" || {
           echo "Benchmark run timed out or failed, but continuing with available results"
           exit 0
         }
-        
+
         # Create results directory if it doesn't exist
         mkdir -p ../../benchmark-results/pr
-        
+
         # Copy JSON results if they exist
         if ls BenchmarkDotNet.Artifacts/results/*.json 1> /dev/null 2>&1; then
           cp BenchmarkDotNet.Artifacts/results/*.json ../../benchmark-results/pr/
@@ -121,51 +119,51 @@ jobs:
           # Create a dummy result file so the workflow doesn't fail
           echo '{"Benchmarks": []}' > ../../benchmark-results/pr/dummy-results.json
         fi
-        
+
         # Store results as artifacts
         echo "pr_results_path=benchmark-results/pr" >> $GITHUB_OUTPUT
-        
+
     - name: Upload PR benchmark artifacts
       uses: actions/upload-artifact@v4
       with:
         name: pr-benchmark-results
         path: benchmark-results/pr/
         retention-days: 7
-        
+
     - name: Checkout main branch
       uses: actions/checkout@v4
       with:
         ref: main
         clean: false
         path: main-branch
-        
+
     - name: Build main branch solution
       run: |
         cd main-branch
         # Use cache if available, otherwise restore
         dotnet restore
         dotnet build --no-restore --configuration Release --verbosity normal
-        
+
     - name: Run main branch benchmarks
       id: main_benchmark
       run: |
         cd main-branch/benchmarks/StreamDingo.Benchmarks
-        
+
         # Use same CI-optimized configuration as PR branch for fair comparison
         BENCHMARK_MODE="${{ steps.check_benchmarks.outputs.benchmark_mode }}"
         BENCHMARK_FILTER="${{ github.event.inputs.benchmark_filter || '*' }}"
-        
+
         echo "Running main branch benchmarks in CI mode: $BENCHMARK_MODE with filter: $BENCHMARK_FILTER"
-        
-        # Run with shorter timeout for CI-optimized benchmarks  
+
+        # Run with shorter timeout for CI-optimized benchmarks
         timeout 120 dotnet run --configuration Release -- --ci-mode "$BENCHMARK_MODE" --exporters json --filter "$BENCHMARK_FILTER" || {
           echo "Benchmark run timed out or failed, but continuing with available results"
           exit 0
         }
-        
+
         # Create results directory if it doesn't exist
         mkdir -p ../../../benchmark-results/main
-        
+
         # Copy JSON results if they exist
         if ls BenchmarkDotNet.Artifacts/results/*.json 1> /dev/null 2>&1; then
           cp BenchmarkDotNet.Artifacts/results/*.json ../../../benchmark-results/main/
@@ -175,14 +173,14 @@ jobs:
           # Create a dummy result file so the workflow doesn't fail
           echo '{"Benchmarks": []}' > ../../../benchmark-results/main/dummy-results.json
         fi
-        
+
     - name: Upload main benchmark artifacts
       uses: actions/upload-artifact@v4
       with:
         name: main-benchmark-results
         path: benchmark-results/main/
         retention-days: 7
-        
+
     - name: Compare benchmark results
       id: compare
       run: |
@@ -192,15 +190,15 @@ jobs:
         import os
         import sys
         from pathlib import Path
-        
+
         def load_benchmark_results(results_dir):
             """Load benchmark results from JSON files"""
             results = {}
             results_path = Path(results_dir)
-            
+
             if not results_path.exists():
                 return {}
-                
+
             for json_file in results_path.glob("*.json"):
                 try:
                     with open(json_file, 'r') as f:
@@ -211,7 +209,7 @@ jobs:
                                 if benchmark.get('Parameters'):
                                     params = '_'.join(str(v) for v in benchmark['Parameters'].values())
                                     key += f"({params})"
-                                
+
                                 stats = benchmark.get('Statistics', {})
                                 results[key] = {
                                     'mean': stats.get('Mean', 0),
@@ -221,9 +219,9 @@ jobs:
                                 }
                 except Exception as e:
                     print(f"Error reading {json_file}: {e}")
-                    
+
             return results
-        
+
         def format_time(nanoseconds):
             """Format time in appropriate units"""
             if nanoseconds < 1000:
@@ -234,7 +232,7 @@ jobs:
                 return f"{nanoseconds/1_000_000:.2f} ms"
             else:
                 return f"{nanoseconds/1_000_000_000:.2f} s"
-        
+
         def format_bytes(bytes_val):
             """Format bytes in appropriate units"""
             if bytes_val == 0:
@@ -247,25 +245,25 @@ jobs:
                 return f"{bytes_val/1024**2:.2f} MB"
             else:
                 return f"{bytes_val/1024**3:.2f} GB"
-        
+
         def calculate_change_percentage(old_val, new_val):
             """Calculate percentage change"""
             if old_val == 0:
                 return float('inf') if new_val > 0 else 0
             return ((new_val - old_val) / old_val) * 100
-        
+
         def generate_markdown_report(main_results, pr_results):
             """Generate markdown comparison report"""
-            
+
             if not main_results and not pr_results:
                 return "No benchmark results found."
-                
+
             if not main_results:
                 return "No baseline results from main branch found."
-                
+
             if not pr_results:
                 return "No PR benchmark results found."
-            
+
             report = []
             report.append("## 📊 Performance Benchmark Results")
             report.append("")
@@ -273,49 +271,49 @@ jobs:
             report.append("")
             report.append("This PR introduces the following performance changes:")
             report.append("")
-            
+
             # Find common benchmarks
             common_benchmarks = set(main_results.keys()) & set(pr_results.keys())
-            
+
             if not common_benchmarks:
                 report.append("No common benchmarks found between main and PR branches.")
                 return "\n".join(report)
-            
+
             # Calculate overall performance summary
             performance_improvements = 0
             performance_regressions = 0
             memory_improvements = 0
             memory_regressions = 0
-            
+
             # Performance changes table
             report.append("| Benchmark | Main | PR | Change | Memory Main | Memory PR | Memory Change |")
             report.append("|-----------|------|----|---------|-----------|---------|-----------   |")
-            
+
             significant_changes = []
-            
+
             for benchmark in sorted(common_benchmarks):
                 main_stat = main_results[benchmark]
                 pr_stat = pr_results[benchmark]
-                
+
                 main_time = main_stat['mean']
                 pr_time = pr_stat['mean']
                 time_change = calculate_change_percentage(main_time, pr_time)
-                
+
                 main_memory = main_stat['allocated']
                 pr_memory = pr_stat['allocated']
                 memory_change = calculate_change_percentage(main_memory, pr_memory)
-                
+
                 # Track overall trends
                 if time_change > 5:
                     performance_regressions += 1
                 elif time_change < -5:
                     performance_improvements += 1
-                
+
                 if memory_change > 5:
                     memory_regressions += 1
                 elif memory_change < -5:
                     memory_improvements += 1
-                
+
                 # Format time change
                 if time_change == float('inf'):
                     time_change_str = "NEW"
@@ -324,7 +322,7 @@ jobs:
                 else:
                     sign = "🔴" if time_change > 5 else "🟡" if time_change > -5 else "🟢"
                     time_change_str = f"{sign} {time_change:+.1f}%"
-                
+
                 # Format memory change
                 if memory_change == float('inf'):
                     memory_change_str = "NEW"
@@ -333,23 +331,23 @@ jobs:
                 else:
                     sign = "🔴" if memory_change > 5 else "🟡" if memory_change > -5 else "🟢"
                     memory_change_str = f"{sign} {memory_change:+.1f}%"
-                
+
                 report.append(f"| {benchmark} | {format_time(main_time)} | {format_time(pr_time)} | {time_change_str} | {format_bytes(main_memory)} | {format_bytes(pr_memory)} | {memory_change_str} |")
-                
+
                 # Track significant changes
                 if abs(time_change) > 10 or abs(memory_change) > 10:
                     change_type = "regression" if time_change > 10 or memory_change > 10 else "improvement"
                     significant_changes.append(f"- **{benchmark}**: {change_type}")
-            
+
             # Add performance summary
             report.append("")
             report.append("### 📈 Performance Summary")
-            
+
             if performance_improvements > 0 or performance_regressions > 0:
                 report.append(f"- **Performance**: {performance_improvements} improvements, {performance_regressions} regressions")
             if memory_improvements > 0 or memory_regressions > 0:
                 report.append(f"- **Memory**: {memory_improvements} improvements, {memory_regressions} regressions")
-            
+
             # Visual performance indicator
             if performance_regressions > performance_improvements:
                 report.append("- **Overall Impact**: ⚠️ Performance decreased")
@@ -357,7 +355,7 @@ jobs:
                 report.append("- **Overall Impact**: ✅ Performance improved")
             else:
                 report.append("- **Overall Impact**: ➡️ No significant performance change")
-            
+
             # Add ASCII chart for visual representation
             if len(common_benchmarks) > 0:
                 report.append("")
@@ -371,46 +369,46 @@ jobs:
                 report.append(f"Regressions:  {regressions_bar} ({performance_regressions})")
                 report.append(f"Neutral:      {neutral_bar} ({len(common_benchmarks) - performance_improvements - performance_regressions})")
                 report.append("```")
-            
+
             if significant_changes:
                 report.append("")
                 report.append("### ⚡ Significant Changes")
                 report.extend(significant_changes)
-            
+
             report.append("")
             report.append("---")
             report.append("*🟢 = Improvement, 🟡 = Minor change, 🔴 = Regression*")
-            
+
             return "\n".join(report)
-        
+
         # Load results
         main_results = load_benchmark_results("benchmark-results/main")
         pr_results = load_benchmark_results("benchmark-results/pr")
-        
+
         # Generate report
         markdown_report = generate_markdown_report(main_results, pr_results)
-        
+
         # Save report
         with open("benchmark_report.md", "w") as f:
             f.write(markdown_report)
-        
+
         print("Benchmark comparison completed!")
         print(f"Found {len(main_results)} main benchmarks and {len(pr_results)} PR benchmarks")
         EOF
-        
+
         # Run comparison
         python3 compare_benchmarks.py
-        
+
         # Set output
         echo "report_generated=true" >> $GITHUB_OUTPUT
-        
+
     - name: Update PR description with benchmark results
       if: steps.compare.outputs.report_generated == 'true'
       uses: actions/github-script@v7
       with:
         script: |
           const fs = require('fs');
-          
+
           // Read the benchmark report
           let benchmarkReport = '';
           try {
@@ -419,34 +417,34 @@ jobs:
             console.log('Could not read benchmark report:', error);
             return;
           }
-          
+
           // Get current PR description
           const pr = await github.rest.pulls.get({
             owner: context.repo.owner,
             repo: context.repo.repo,
             pull_number: context.issue.number
           });
-          
+
           let currentBody = pr.data.body || '';
-          
+
           // Remove existing benchmark section
           const benchmarkSectionRegex = /<!--BENCHMARK_START-->.*?<!--BENCHMARK_END-->/s;
           currentBody = currentBody.replace(benchmarkSectionRegex, '').trim();
-          
+
           // Add new benchmark section
           const benchmarkSection = `
-          
+
           <!--BENCHMARK_START-->
           <details>
           <summary>📊 Performance Benchmark Results</summary>
-          
+
           ${benchmarkReport}
-          
+
           </details>
           <!--BENCHMARK_END-->`;
-          
+
           const newBody = currentBody + benchmarkSection;
-          
+
           // Update PR description
           await github.rest.pulls.update({
             owner: context.repo.owner,
@@ -454,22 +452,22 @@ jobs:
             pull_number: context.issue.number,
             body: newBody
           });
-          
+
           console.log('PR description updated with benchmark results');
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
     - name: Comment on performance regressions
       if: steps.compare.outputs.report_generated == 'true'
       uses: actions/github-script@v7
       with:
         script: |
           const fs = require('fs');
-          
+
           // This would be enhanced to actually parse the results and detect regressions
           // For now, it's a placeholder for the functionality
           const report = fs.readFileSync('benchmark_report.md', 'utf8');
-          
+
           if (report.includes('🔴')) {
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
