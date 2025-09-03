@@ -1,0 +1,83 @@
+<h1 id="event-replay">Event Replay</h1>
+<p>Event replay is the process of reconstructing aggregate state by reapplying stored events. StreamDingo provides intelligent replay strategies optimized for performance and integrity.</p>
+<h2 id="replay-triggers">Replay Triggers</h2>
+<h3 id="handler-code-changes">Handler Code Changes</h3>
+<p>When event handler code changes, affected streams need replay:</p>
+<pre><code class="language-csharp">// Handler change detected - replay required
+var currentHash = hashProvider.HashEventHandlers&lt;UserAggregate&gt;();
+if (currentHash != snapshot.Metadata.AggregateHash)
+{
+    await TriggerReplayAsync&lt;UserAggregate&gt;(streamId);
+}
+</code></pre>
+<h3 id="data-integrity-issues">Data Integrity Issues</h3>
+<p>Corrupted snapshots trigger replay from last valid state:</p>
+<pre><code class="language-csharp">var snapshotValid = await VerifySnapshotIntegrityAsync(streamId);
+if (!snapshotValid)
+{
+    await ReplayFromLastValidSnapshotAsync(streamId);
+}
+</code></pre>
+<h2 id="replay-strategies">Replay Strategies</h2>
+<h3 id="full-replay">Full Replay</h3>
+<p>Replay all events from the beginning:</p>
+<pre><code class="language-csharp">public async Task&lt;TAggregate?&gt; FullReplayAsync&lt;TAggregate&gt;(string streamId)
+{
+    var events = await eventStore.GetAllEventsAsync(streamId);
+    return events.Aggregate(default(TAggregate), ApplyEventToState);
+}
+</code></pre>
+<h3 id="snapshot-based-replay">Snapshot-Based Replay</h3>
+<p>Replay from the most recent valid snapshot:</p>
+<pre><code class="language-csharp">public async Task&lt;TAggregate?&gt; SnapshotBasedReplayAsync&lt;TAggregate&gt;(string streamId)
+{
+    var snapshot = await GetLatestValidSnapshotAsync&lt;TAggregate&gt;(streamId);
+    var events = await eventStore.GetEventsFromVersionAsync(streamId, snapshot.Version + 1);
+    
+    return events.Aggregate(snapshot.State, ApplyEventToState);
+}
+</code></pre>
+<h2 id="performance-optimization">Performance Optimization</h2>
+<h3 id="batch-processing">Batch Processing</h3>
+<p>Process events in batches for better performance:</p>
+<pre><code class="language-csharp">public async Task&lt;TAggregate?&gt; BatchReplayAsync&lt;TAggregate&gt;(string streamId, int batchSize = 1000)
+{
+    var state = default(TAggregate);
+    var version = 0L;
+    
+    while (true)
+    {
+        var events = await eventStore.GetEventBatchAsync(streamId, version, batchSize);
+        if (!events.Any()) break;
+        
+        foreach (var &#64;event in events)
+        {
+            state = ApplyEventToState(state, &#64;event);
+        }
+        
+        version = events.Last().Version + 1;
+    }
+    
+    return state;
+}
+</code></pre>
+<h3 id="parallel-replay">Parallel Replay</h3>
+<p>For multiple streams, use parallel processing:</p>
+<pre><code class="language-csharp">public async Task&lt;Dictionary&lt;string, TAggregate&gt;&gt; ReplayMultipleStreamsAsync&lt;TAggregate&gt;(
+    IEnumerable&lt;string&gt; streamIds)
+{
+    var tasks = streamIds.Select(async streamId =&gt;
+    {
+        var state = await ReplayEventsAsync&lt;TAggregate&gt;(streamId);
+        return new KeyValuePair&lt;string, TAggregate&gt;(streamId, state);
+    });
+    
+    var results = await Task.WhenAll(tasks);
+    return results.ToDictionary(r =&gt; r.Key, r =&gt; r.Value);
+}
+</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li>Learn about <a href="storage-providers.md">Storage Providers</a></li>
+<li>Explore <a href="../advanced/performance.md">Performance</a> optimization</li>
+</ul>

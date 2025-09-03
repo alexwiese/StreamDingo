@@ -1,0 +1,355 @@
+<h1 id="hash-integrity">Hash Integrity</h1>
+<p>StreamDingo uses hash-based integrity verification to ensure the reliability of your event-sourced system by detecting changes in event handler code and verifying data integrity.</p>
+<h2 id="overview">Overview</h2>
+<p>Hash integrity verification serves two main purposes:</p>
+<ol>
+<li><strong>Code Change Detection</strong>: Detects when event handler code changes, triggering necessary replays</li>
+<li><strong>Data Integrity</strong>: Verifies that stored snapshots and events haven't been corrupted or tampered with</li>
+</ol>
+<h2 id="hash-provider-integration">Hash Provider Integration</h2>
+<p>StreamDingo integrates with the <code>alexwiese/hashstamp</code> library for robust hash generation:</p>
+<pre><code class="language-csharp">services.AddSingleton&lt;IHashProvider, HashStampProvider&gt;();
+</code></pre>
+<h3 id="hash-types">Hash Types</h3>
+<h4 id="handler-code-hashes">Handler Code Hashes</h4>
+<p>Generated from event handler method bodies and their dependencies:</p>
+<pre><code class="language-csharp">public class HashStampProvider : IHashProvider
+{
+    public string HashEventHandlers&lt;TAggregate&gt;()
+    {
+        var handlerMethods = GetEventHandlerMethods&lt;TAggregate&gt;();
+        var combinedHash = new StringBuilder();
+        
+        foreach (var method in handlerMethods)
+        {
+            var methodHash = HashStamp.GenerateHash(method);
+            combinedHash.Append(methodHash);
+        }
+        
+        return HashStamp.GenerateHash(combinedHash.ToString());
+    }
+}
+</code></pre>
+<h4 id="data-hashes">Data Hashes</h4>
+<p>Generated from serialized object data:</p>
+<pre><code class="language-csharp">public string HashObject&lt;T&gt;(T obj)
+{
+    var json = JsonSerializer.Serialize(obj, _jsonOptions);
+    return HashStamp.GenerateHash(json);
+}
+</code></pre>
+<h2 id="change-detection-scenarios">Change Detection Scenarios</h2>
+<h3 id="handler-code-changes">Handler Code Changes</h3>
+<p>When event handler code changes, affected events must be replayed:</p>
+<pre><code class="language-csharp">// Original handler
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+    =&gt; new UserAggregate(&#64;event.UserId, &#64;event.Name, &#64;event.Email, 1);
+
+// Modified handler (business logic change)
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+    =&gt; new UserAggregate(&#64;event.UserId, &#64;event.Name?.ToUpper(), &#64;event.Email, 1); // Name now uppercase
+</code></pre>
+<h3 id="what-triggers-hash-changes">What Triggers Hash Changes</h3>
+<h4 id="code-changes-that-matter">Code Changes That Matter</h4>
+<pre><code class="language-csharp">// ✅ These changes trigger replay (as they should)
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+{
+    // Business logic change
+    var normalizedEmail = &#64;event.Email.ToLowerInvariant(); // NEW
+    
+    // Validation change
+    if (string.IsNullOrEmpty(&#64;event.Name)) // NEW
+        throw new ArgumentException(&quot;Name cannot be empty&quot;);
+    
+    return new UserAggregate(&#64;event.UserId, &#64;event.Name, normalizedEmail, 1);
+}
+</code></pre>
+<h4 id="code-changes-that-dont-matter">Code Changes That Don't Matter</h4>
+<pre><code class="language-csharp">// ❌ These changes also trigger replay (but shouldn't affect behavior)
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+{
+    // Comment changes trigger hash changes
+    // This is a new comment that changes the hash
+    
+    // Variable name changes trigger hash changes  
+    var userId = &#64;event.UserId; // was: var id = &#64;event.UserId;
+    
+    // Whitespace changes trigger hash changes
+    return new UserAggregate(userId, &#64;event.Name, 
+                           &#64;event.Email, 1); // Different formatting
+}
+</code></pre>
+<h2 id="replay-strategies">Replay Strategies</h2>
+<h3 id="intelligent-replay">Intelligent Replay</h3>
+<p>StreamDingo determines optimal replay strategies based on hash changes:</p>
+<div class="mermaid">flowchart TD
+    A[Event Handler Change Detected] --> B{Snapshot Available?}
+    B -->|Yes| C{Snapshot Hash Valid?}
+    B -->|No| D[Full Replay from Beginning]
+    C -->|Yes| E[Replay from Snapshot]
+    C -->|No| F[Find Next Valid Snapshot]
+    F --> G{Valid Snapshot Found?}
+    G -->|Yes| E
+    G -->|No| D
+    E --> H[Current State]
+    D --> H
+</div>
+<h3 id="implementation">Implementation</h3>
+<pre><code class="language-csharp">public async Task&lt;TAggregate?&gt; ReplayWithHashVerificationAsync&lt;TAggregate&gt;(string streamId)
+{
+    var currentHandlerHash = _hashProvider.HashEventHandlers&lt;TAggregate&gt;();
+    
+    // Check if we have a valid snapshot
+    var snapshots = await _snapshotStore.GetSnapshotsAsync&lt;TAggregate&gt;(streamId);
+    
+    foreach (var snapshot in snapshots.OrderByDescending(s =&gt; s.Metadata.EventVersion))
+    {
+        // Verify snapshot data integrity
+        var snapshotDataHash = _hashProvider.HashObject(snapshot.State);
+        if (snapshotDataHash != snapshot.Metadata.SnapshotHash)
+        {
+            _logger.LogWarning(&quot;Snapshot data corruption detected at version {Version}&quot;, 
+                snapshot.Metadata.EventVersion);
+            continue; // Try older snapshot
+        }
+        
+        // Check if handler code has changed since snapshot
+        if (currentHandlerHash == snapshot.Metadata.AggregateHash)
+        {
+            // Handler hasn't changed, can use this snapshot
+            return await ReplayFromSnapshotAsync(snapshot, streamId);
+        }
+        
+        _logger.LogInformation(&quot;Handler code changed since snapshot at version {Version}, continuing search&quot;, 
+            snapshot.Metadata.EventVersion);
+    }
+    
+    // No valid snapshot found, replay from beginning
+    _logger.LogInformation(&quot;No valid snapshot found for {StreamId}, replaying from beginning&quot;, streamId);
+    return await ReplayFromBeginningAsync&lt;TAggregate&gt;(streamId);
+}
+</code></pre>
+<h2 id="data-integrity-verification">Data Integrity Verification</h2>
+<h3 id="snapshot-verification">Snapshot Verification</h3>
+<p>Verify snapshot integrity when loading:</p>
+<pre><code class="language-csharp">public async Task&lt;bool&gt; VerifySnapshotIntegrityAsync&lt;TAggregate&gt;(string streamId)
+{
+    var snapshot = await _snapshotStore.GetSnapshotAsync&lt;TAggregate&gt;(streamId);
+    if (snapshot == null) return true; // No snapshot to verify
+    
+    var currentHash = _hashProvider.HashObject(snapshot.State);
+    var storedHash = snapshot.Metadata.SnapshotHash;
+    
+    if (currentHash != storedHash)
+    {
+        _logger.LogError(&quot;Snapshot integrity verification failed for {StreamId}. &quot; +
+                        &quot;Current hash: {CurrentHash}, Stored hash: {StoredHash}&quot;,
+                        streamId, currentHash, storedHash);
+        return false;
+    }
+    
+    return true;
+}
+</code></pre>
+<h3 id="event-integrity-future-feature">Event Integrity (Future Feature)</h3>
+<p>Individual event integrity verification:</p>
+<pre><code class="language-csharp">public class EventWithHash
+{
+    public object Event { get; set; }
+    public string EventHash { get; set; }
+    public long Version { get; set; }
+    public DateTime Timestamp { get; set; }
+}
+
+public async Task&lt;bool&gt; VerifyEventIntegrityAsync(string streamId, long version)
+{
+    var eventData = await _eventStore.GetEventAsync(streamId, version);
+    if (eventData == null) return false;
+    
+    var currentHash = _hashProvider.HashObject(eventData.Event);
+    return currentHash == eventData.EventHash;
+}
+</code></pre>
+<h2 id="performance-considerations">Performance Considerations</h2>
+<h3 id="hash-caching">Hash Caching</h3>
+<p>Cache handler hashes to avoid repeated computation:</p>
+<pre><code class="language-csharp">public class CachedHashProvider : IHashProvider
+{
+    private readonly ConcurrentDictionary&lt;Type, string&gt; _handlerHashCache = new();
+    private readonly IHashProvider _innerProvider;
+    
+    public string HashEventHandlers&lt;TAggregate&gt;()
+    {
+        return _handlerHashCache.GetOrAdd(typeof(TAggregate), 
+            _ =&gt; _innerProvider.HashEventHandlers&lt;TAggregate&gt;());
+    }
+    
+    public void InvalidateCache&lt;TAggregate&gt;()
+    {
+        _handlerHashCache.TryRemove(typeof(TAggregate), out _);
+    }
+}
+</code></pre>
+<h3 id="selective-hashing">Selective Hashing</h3>
+<p>Only hash relevant parts of handlers:</p>
+<pre><code class="language-csharp">public string HashEventHandlers&lt;TAggregate&gt;()
+{
+    var relevantMethods = typeof(TAggregate).Assembly
+        .GetTypes()
+        .SelectMany(t =&gt; t.GetMethods())
+        .Where(m =&gt; IsEventHandlerMethod&lt;TAggregate&gt;(m))
+        .Where(m =&gt; !HasIgnoreHashAttribute(m)); // Allow excluding certain methods
+    
+    return HashMethods(relevantMethods);
+}
+</code></pre>
+<h2 id="configuration-options">Configuration Options</h2>
+<h3 id="hash-provider-options">Hash Provider Options</h3>
+<pre><code class="language-csharp">services.Configure&lt;HashProviderOptions&gt;(options =&gt;
+{
+    options.IncludeMethodComments = false;    // Ignore comment changes
+    options.IgnoreWhitespaceChanges = true;   // Ignore formatting changes
+    options.HashPrivateMethods = false;       // Only hash public handler methods
+    options.CacheHashResults = true;          // Enable hash caching
+});
+</code></pre>
+<h3 id="integrity-check-frequency">Integrity Check Frequency</h3>
+<pre><code class="language-csharp">services.Configure&lt;IntegrityCheckOptions&gt;(options =&gt;
+{
+    options.VerifySnapshotIntegrity = true;           // Always verify snapshots
+    options.VerifyEventIntegrity = false;             // Skip individual event verification (expensive)
+    options.PeriodicIntegrityCheck = TimeSpan.FromHours(24); // Full integrity check daily
+});
+</code></pre>
+<h2 id="monitoring-and-alerting">Monitoring and Alerting</h2>
+<h3 id="hash-change-monitoring">Hash Change Monitoring</h3>
+<p>Track when handler changes trigger replays:</p>
+<pre><code class="language-csharp">public class HashChangeTracker
+{
+    public async Task OnHandlerHashChanged&lt;TAggregate&gt;(string oldHash, string newHash)
+    {
+        var changeInfo = new HandlerHashChangeEvent
+        {
+            AggregateType = typeof(TAggregate).Name,
+            OldHash = oldHash,
+            NewHash = newHash,
+            Timestamp = DateTime.UtcNow,
+            RequiredReplays = await GetAffectedStreamsAsync&lt;TAggregate&gt;()
+        };
+        
+        await _eventBus.PublishAsync(changeInfo);
+        
+        // Alert if many streams need replay
+        if (changeInfo.RequiredReplays.Count &gt; 100)
+        {
+            await _alertingService.SendAlertAsync(
+                &quot;High impact handler change detected&quot;, 
+                $&quot;{changeInfo.RequiredReplays.Count} streams require replay&quot;);
+        }
+    }
+}
+</code></pre>
+<h3 id="integrity-violation-alerts">Integrity Violation Alerts</h3>
+<pre><code class="language-csharp">public class IntegrityViolationHandler
+{
+    public async Task OnSnapshotCorruptionDetected(string streamId, string snapshotHash)
+    {
+        await _alertingService.SendCriticalAlertAsync(
+            &quot;Snapshot corruption detected&quot;,
+            $&quot;Stream {streamId} has corrupted snapshot with hash {snapshotHash}&quot;);
+        
+        // Automatically attempt recovery
+        await _recoveryService.RecoverFromCorruption(streamId);
+    }
+}
+</code></pre>
+<h2 id="testing-hash-integrity">Testing Hash Integrity</h2>
+<h3 id="unit-tests">Unit Tests</h3>
+<pre><code class="language-csharp">[Test]
+public void Should_Generate_Same_Hash_For_Identical_Handlers()
+{
+    var hash1 = hashProvider.HashEventHandlers&lt;UserAggregate&gt;();
+    var hash2 = hashProvider.HashEventHandlers&lt;UserAggregate&gt;();
+    
+    Assert.That(hash1, Is.EqualTo(hash2));
+}
+
+[Test]
+public void Should_Generate_Different_Hash_When_Handler_Changes()
+{
+    var originalHash = hashProvider.HashEventHandlers&lt;UserAggregate&gt;();
+    
+    // Simulate handler change by modifying the type
+    ModifyHandlerCode&lt;UserAggregate&gt;();
+    
+    var newHash = hashProvider.HashEventHandlers&lt;UserAggregate&gt;();
+    
+    Assert.That(newHash, Is.Not.EqualTo(originalHash));
+}
+</code></pre>
+<h3 id="integration-tests">Integration Tests</h3>
+<pre><code class="language-csharp">[Test]
+public async Task Should_Replay_From_Valid_Snapshot_When_Data_Intact()
+{
+    // Create snapshot with valid hash
+    var state = new UserAggregate(&quot;user-1&quot;, &quot;test&#64;example.com&quot;, &quot;Test User&quot;, UserStatus.Active, 5);
+    var snapshot = await CreateValidSnapshotAsync(&quot;user-1&quot;, state);
+    
+    // Replay should use snapshot
+    var replayedState = await streamManager.ReplayEventsAsync&lt;UserAggregate&gt;(&quot;user-1&quot;);
+    
+    Assert.That(replayedState.Version, Is.EqualTo(5)); // Used snapshot, not full replay
+}
+
+[Test] 
+public async Task Should_Skip_Corrupted_Snapshot_And_Replay_From_Beginning()
+{
+    // Create corrupted snapshot
+    await CreateCorruptedSnapshotAsync(&quot;user-1&quot;);
+    
+    // Should detect corruption and replay from beginning
+    var replayedState = await streamManager.ReplayEventsAsync&lt;UserAggregate&gt;(&quot;user-1&quot;);
+    
+    // Verify full replay occurred (check logs or metrics)
+    Assert.That(GetReplaySource(&quot;user-1&quot;), Is.EqualTo(ReplaySource.FullReplay));
+}
+</code></pre>
+<h2 id="best-practices">Best Practices</h2>
+<h3 id="handler-stability">Handler Stability</h3>
+<p>Write stable handlers to minimize unnecessary replays:</p>
+<pre><code class="language-csharp">// ✅ Good: Stable, focused handler
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+    =&gt; new UserAggregate(&#64;event.UserId, &#64;event.Name, &#64;event.Email, (state?.Version ?? 0) + 1);
+
+// ❌ Avoid: Handler with changing implementation details
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+{
+    // Avoid complex logic that might change
+    var validationResult = ComplexValidation(&#64;event); // This might change
+    var processedName = ApplyBusinessRules(&#64;event.Name); // This might change
+    
+    return new UserAggregate(&#64;event.UserId, processedName, &#64;event.Email, (state?.Version ?? 0) + 1);
+}
+</code></pre>
+<h3 id="separation-of-concerns">Separation of Concerns</h3>
+<p>Keep event handlers pure and move complex logic elsewhere:</p>
+<pre><code class="language-csharp">// ✅ Good: Pure handler with preprocessed data
+public record UserCreated(string UserId, string Name, string Email, bool IsValidated);
+
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+    =&gt; new UserAggregate(&#64;event.UserId, &#64;event.Name, &#64;event.Email, (state?.Version ?? 0) + 1);
+
+// Complex validation happens before event creation
+public async Task&lt;UserCreated&gt; CreateValidatedUserEvent(string name, string email)
+{
+    var isValid = await _validationService.ValidateAsync(name, email);
+    return new UserCreated(Guid.NewGuid().ToString(), name, email, isValid);
+}
+</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li>Learn about <a href="event-replay.md">Event Replay</a> strategies</li>
+<li>Understand <a href="storage-providers.md">Storage Providers</a> and their integrity features</li>
+<li>Explore <a href="../advanced/performance.md">Performance</a> optimization techniques</li>
+<li>See <a href="../advanced/migrations.md">Migration Strategies</a> for handling schema changes</li>
+</ul>

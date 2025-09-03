@@ -1,0 +1,249 @@
+<h1 id="event-sourcing-with-streamdingo">Event Sourcing with StreamDingo</h1>
+<p>Event sourcing is a powerful architectural pattern that stores data as a sequence of events rather than the current state. StreamDingo makes event sourcing accessible and efficient in .NET applications.</p>
+<h2 id="core-principles">Core Principles</h2>
+<h3 id="immutable-event-log">Immutable Event Log</h3>
+<p>Instead of updating records in place, event sourcing appends new events to an immutable log:</p>
+<pre><code class="language-csharp">// Traditional approach (mutating state)
+user.Email = &quot;newemail&#64;example.com&quot;;
+user.UpdatedAt = DateTime.UtcNow;
+database.Update(user);
+
+// Event sourcing approach (append events)
+var &#64;event = new UserEmailChanged(user.Id, &quot;newemail&#64;example.com&quot;, DateTime.UtcNow);
+await eventStore.AppendEventAsync(user.Id, &#64;event);
+</code></pre>
+<h3 id="state-reconstruction">State Reconstruction</h3>
+<p>Current state is reconstructed by replaying events from the beginning:</p>
+<pre><code class="language-csharp">var events = await eventStore.GetEventsAsync(userId);
+var currentUser = events.Aggregate((UserAggregate?)null, (state, &#64;event) =&gt;
+    &#64;event switch
+    {
+        UserRegistered e =&gt; UserEventHandlers.Handle(state, e),
+        UserEmailChanged e =&gt; UserEventHandlers.Handle(state, e),
+        UserDeactivated e =&gt; UserEventHandlers.Handle(state, e),
+        _ =&gt; state
+    });
+</code></pre>
+<h2 id="benefits-of-event-sourcing">Benefits of Event Sourcing</h2>
+<h3 id="complete-audit-trail">Complete Audit Trail</h3>
+<p>Every change is preserved with full context:</p>
+<pre><code class="language-csharp">public record UserEmailChanged(
+    string UserId, 
+    string NewEmail, 
+    string PreviousEmail, 
+    DateTime ChangedAt, 
+    string ChangedBy,
+    string Reason
+);
+</code></pre>
+<h3 id="time-travel">Time Travel</h3>
+<p>Query your system's state at any point in time:</p>
+<pre><code class="language-csharp">// Get user state as of a specific date
+var userStateAt = await streamManager.ReplayEventsAsync&lt;UserAggregate&gt;(
+    userId, 
+    upToTimestamp: DateTime.Parse(&quot;2024-01-15&quot;));
+</code></pre>
+<h3 id="event-driven-integration">Event-Driven Integration</h3>
+<p>Events can trigger downstream processes:</p>
+<pre><code class="language-csharp">public class UserEmailChangedHandler : IEventHandler&lt;UserEmailChanged&gt;
+{
+    public async Task HandleAsync(UserEmailChanged &#64;event)
+    {
+        // Update search index
+        await searchService.UpdateUserEmailAsync(&#64;event.UserId, &#64;event.NewEmail);
+        
+        // Send notification
+        await emailService.SendEmailChangeConfirmationAsync(&#64;event.NewEmail);
+        
+        // Update analytics
+        await analyticsService.TrackUserEmailChangeAsync(&#64;event.UserId);
+    }
+}
+</code></pre>
+<h2 id="streamdingos-approach">StreamDingo's Approach</h2>
+<h3 id="handler-based-architecture">Handler-Based Architecture</h3>
+<p>StreamDingo uses pure functions to handle events:</p>
+<pre><code class="language-csharp">public class UserEventHandlers
+{
+    public static UserAggregate Handle(UserAggregate? state, UserRegistered &#64;event)
+        =&gt; new UserAggregate(
+            Id: &#64;event.UserId,
+            Email: &#64;event.Email,
+            Name: &#64;event.Name,
+            Status: UserStatus.Active,
+            Version: (state?.Version ?? 0) + 1
+        );
+    
+    public static UserAggregate Handle(UserAggregate state, UserEmailChanged &#64;event)
+        =&gt; state with { 
+            Email = &#64;event.NewEmail, 
+            Version = state.Version + 1 
+        };
+}
+</code></pre>
+<h3 id="intelligent-replay">Intelligent Replay</h3>
+<p>StreamDingo optimizes replay using snapshots and hash-based change detection:</p>
+<div class="mermaid">graph LR
+    A[Event 1] --> B[Event 2]
+    B --> C[Event 3]
+    C --> D[Snapshot]
+    D --> E[Event 4]
+    E --> F[Event 5]
+    F --> G[Current State]
+    
+    H[Handler Change] --> I[Replay from Snapshot]
+    I --> G
+</div>
+<h2 id="implementation-patterns">Implementation Patterns</h2>
+<h3 id="basic-event-store-setup">Basic Event Store Setup</h3>
+<pre><code class="language-csharp">// Configure event store
+services.AddSingleton&lt;IEventStore, InMemoryEventStore&gt;();
+services.AddSingleton&lt;ISnapshotStore, InMemorySnapshotStore&gt;();
+services.AddSingleton&lt;IHashProvider, HashStampProvider&gt;();
+services.AddSingleton&lt;IEventStreamManager, EventStreamManager&gt;();
+
+// Register event handlers
+services.AddEventHandler&lt;UserAggregate, UserRegistered&gt;(UserEventHandlers.Handle);
+services.AddEventHandler&lt;UserAggregate, UserEmailChanged&gt;(UserEventHandlers.Handle);
+</code></pre>
+<h3 id="command-handler-pattern">Command Handler Pattern</h3>
+<pre><code class="language-csharp">public class UserCommandHandler
+{
+    private readonly IEventStreamManager _streamManager;
+    
+    public UserCommandHandler(IEventStreamManager streamManager)
+    {
+        _streamManager = streamManager;
+    }
+    
+    public async Task&lt;UserAggregate&gt; RegisterUserAsync(RegisterUserCommand command)
+    {
+        var &#64;event = new UserRegistered(
+            UserId: Guid.NewGuid().ToString(),
+            Email: command.Email,
+            Name: command.Name,
+            RegisteredAt: DateTime.UtcNow
+        );
+        
+        await _streamManager.AppendEventAsync(&#64;event.UserId, &#64;event);
+        return await _streamManager.ReplayEventsAsync&lt;UserAggregate&gt;(&#64;event.UserId);
+    }
+}
+</code></pre>
+<h3 id="projection-pattern">Projection Pattern</h3>
+<pre><code class="language-csharp">public class UserProjectionHandler
+{
+    public async Task HandleAsync(UserRegistered &#64;event)
+    {
+        var projection = new UserProjection
+        {
+            Id = &#64;event.UserId,
+            Email = &#64;event.Email,
+            Name = &#64;event.Name,
+            CreatedAt = &#64;event.RegisteredAt
+        };
+        
+        await projectionStore.SaveAsync(projection);
+    }
+    
+    public async Task HandleAsync(UserEmailChanged &#64;event)
+    {
+        var projection = await projectionStore.GetAsync(&#64;event.UserId);
+        projection.Email = &#64;event.NewEmail;
+        projection.UpdatedAt = &#64;event.ChangedAt;
+        
+        await projectionStore.SaveAsync(projection);
+    }
+}
+</code></pre>
+<h2 id="performance-considerations">Performance Considerations</h2>
+<h3 id="snapshot-strategy">Snapshot Strategy</h3>
+<p>Configure automatic snapshots for long-lived aggregates:</p>
+<pre><code class="language-csharp">services.Configure&lt;SnapshotOptions&gt;(options =&gt;
+{
+    options.SnapshotEveryNEvents = 100;
+    options.MaxSnapshotsPerStream = 10;
+    options.EnableAutomaticSnapshots = true;
+});
+</code></pre>
+<h3 id="batch-operations">Batch Operations</h3>
+<p>Use batch operations for bulk event processing:</p>
+<pre><code class="language-csharp">var events = GenerateBulkEvents();
+await eventStore.AppendEventsBatchAsync(streamId, events);
+</code></pre>
+<h3 id="read-models">Read Models</h3>
+<p>Use projections for optimized read operations:</p>
+<pre><code class="language-csharp">// Instead of replaying events every time
+var user = await streamManager.ReplayEventsAsync&lt;UserAggregate&gt;(userId);
+
+// Use pre-built projections for queries
+var userSummary = await projectionStore.GetUserSummaryAsync(userId);
+</code></pre>
+<h2 id="testing-event-sourced-systems">Testing Event-Sourced Systems</h2>
+<h3 id="unit-testing-event-handlers">Unit Testing Event Handlers</h3>
+<pre><code class="language-csharp">[Test]
+public void Should_Update_User_Email()
+{
+    // Given
+    var initialState = new UserAggregate(&quot;user-1&quot;, &quot;old&#64;example.com&quot;, &quot;John&quot;, UserStatus.Active, 1);
+    var &#64;event = new UserEmailChanged(&quot;user-1&quot;, &quot;new&#64;example.com&quot;);
+    
+    // When
+    var newState = UserEventHandlers.Handle(initialState, &#64;event);
+    
+    // Then
+    Assert.That(newState.Email, Is.EqualTo(&quot;new&#64;example.com&quot;));
+    Assert.That(newState.Version, Is.EqualTo(2));
+}
+</code></pre>
+<h3 id="integration-testing">Integration Testing</h3>
+<pre><code class="language-csharp">[Test]
+public async Task Should_Store_And_Replay_Events()
+{
+    // Given
+    var streamId = &quot;test-stream&quot;;
+    var events = new object[]
+    {
+        new UserRegistered(&quot;user-1&quot;, &quot;test&#64;example.com&quot;, &quot;Test User&quot;),
+        new UserEmailChanged(&quot;user-1&quot;, &quot;updated&#64;example.com&quot;)
+    };
+    
+    // When
+    await streamManager.AppendEventsAsync(streamId, events);
+    var state = await streamManager.ReplayEventsAsync&lt;UserAggregate&gt;(streamId);
+    
+    // Then
+    Assert.That(state.Email, Is.EqualTo(&quot;updated&#64;example.com&quot;));
+    Assert.That(state.Version, Is.EqualTo(2));
+}
+</code></pre>
+<h2 id="common-anti-patterns-to-avoid">Common Anti-Patterns to Avoid</h2>
+<h3 id="overly-granular-events">Overly Granular Events</h3>
+<pre><code class="language-csharp">// Avoid: Too many tiny events
+UserFirstNameChanged, UserLastNameChanged, UserMiddleNameChanged
+
+// Better: Logical grouping
+UserNameChanged(firstName, lastName, middleName)
+</code></pre>
+<h3 id="events-with-side-effects">Events with Side Effects</h3>
+<pre><code class="language-csharp">// Avoid: Events that cause side effects
+public record EmailSent(string to, string subject); // This is an action, not an event
+
+// Better: Events that record what happened
+public record UserNotificationSent(string userId, string notificationType, DateTime sentAt);
+</code></pre>
+<h3 id="temporal-coupling">Temporal Coupling</h3>
+<pre><code class="language-csharp">// Avoid: Events that depend on execution order across aggregates
+public record OrderPlaced(string orderId, string productId);
+public record InventoryReduced(string productId, int quantity); // Separate aggregate
+
+// Better: Include all necessary context
+public record OrderPlaced(string orderId, string productId, int quantity, bool inventoryReserved);
+</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li>Learn about <a href="event-handlers.md">Event Handlers</a> in detail</li>
+<li>Understand <a href="snapshots.md">Snapshot Management</a></li>
+<li>Explore <a href="hash-integrity.md">Hash Integrity</a> verification</li>
+<li>See <a href="event-replay.md">Event Replay</a> strategies</li>
+</ul>

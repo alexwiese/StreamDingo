@@ -1,0 +1,30 @@
+<h1 id="installation">Installation</h1>
+<p>StreamDingo is available as a NuGet package and requires .NET 9.0 or later.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li><a href="https://dotnet.microsoft.com/download/dotnet/9.0">.NET 9.0 SDK</a> or later</li>
+<li>A .NET project targeting <code>net9.0</code> or later</li>
+</ul>
+<h2 id="package-installation">Package Installation</h2>
+<h3 id="using.net-cli">Using .NET CLI</h3>
+<pre><code class="language-bash">dotnet add package StreamDingo
+</code></pre>
+<h3 id="using-package-manager-console">Using Package Manager Console</h3>
+<pre><code class="language-powershell">Install-Package StreamDingo
+</code></pre>
+<h3 id="using-packagereference">Using PackageReference</h3>
+<p>Add the following to your <code>.csproj</code> file:</p>
+<pre><code class="language-xml">&lt;PackageReference Include=&quot;StreamDingo&quot; Version=&quot;0.1.0&quot; /&gt;
+</code></pre>
+<h2 id="development-installation">Development Installation</h2>
+<p>If you want to build StreamDingo from source:</p>
+<pre><code class="language-bash">git clone https://github.com/alexwiese/StreamDingo.git
+cd StreamDingo
+dotnet restore
+dotnet build
+</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li><a href="quickstart.md">Quick Start Guide</a> - Build your first event-sourced application</li>
+<li><a href="concepts.md">Basic Concepts</a> - Understand the core principles</li>
+</ul>

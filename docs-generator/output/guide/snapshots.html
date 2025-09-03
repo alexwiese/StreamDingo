@@ -1,0 +1,359 @@
+<h1 id="snapshots">Snapshots</h1>
+<p>Snapshots in StreamDingo provide performance optimization by caching aggregate state at specific points, reducing the need to replay all events from the beginning.</p>
+<h2 id="what-are-snapshots">What are Snapshots?</h2>
+<p>Snapshots are serialized representations of aggregate state at a particular point in time, along with integrity verification hashes.</p>
+<pre><code class="language-csharp">public record SnapshotMetadata(
+    string StreamId,
+    long EventVersion,
+    DateTime CreatedAt,
+    string AggregateHash,
+    string SnapshotHash
+);
+
+public record Snapshot&lt;TAggregate&gt;(
+    TAggregate State,
+    SnapshotMetadata Metadata
+);
+</code></pre>
+<h2 id="snapshot-creation">Snapshot Creation</h2>
+<h3 id="automatic-snapshots">Automatic Snapshots</h3>
+<p>Configure automatic snapshot creation:</p>
+<pre><code class="language-csharp">services.Configure&lt;SnapshotOptions&gt;(options =&gt;
+{
+    options.SnapshotEveryNEvents = 100;    // Create snapshot every 100 events
+    options.MaxSnapshotsPerStream = 10;    // Keep last 10 snapshots
+    options.EnableAutomaticSnapshots = true;
+});
+</code></pre>
+<h3 id="manual-snapshots">Manual Snapshots</h3>
+<p>Create snapshots manually at strategic points:</p>
+<pre><code class="language-csharp">var currentState = await streamManager.ReplayEventsAsync&lt;UserAggregate&gt;(userId);
+await snapshotStore.SaveSnapshotAsync(userId, currentState);
+</code></pre>
+<h2 id="hash-based-integrity">Hash-Based Integrity</h2>
+<h3 id="snapshot-hashing">Snapshot Hashing</h3>
+<p>Each snapshot includes multiple hashes for integrity verification:</p>
+<div class="mermaid">graph TB
+    A[Aggregate State] --> B[Serialize]
+    B --> C[Hash Snapshot Data]
+    D[Event Handler Code] --> E[Hash Handler Code] 
+    C --> F[Store Snapshot]
+    E --> F
+    F --> G[Snapshot with Hashes]
+</div>
+<h3 id="verification-process">Verification Process</h3>
+<p>When loading snapshots, hashes are verified:</p>
+<pre><code class="language-csharp">public async Task&lt;Snapshot&lt;TAggregate&gt;?&gt; LoadVerifiedSnapshotAsync&lt;TAggregate&gt;(string streamId)
+{
+    var snapshot = await snapshotStore.GetSnapshotAsync&lt;TAggregate&gt;(streamId);
+    if (snapshot == null) return null;
+    
+    // Verify snapshot data integrity
+    var currentSnapshotHash = hashProvider.HashObject(snapshot.State);
+    if (currentSnapshotHash != snapshot.Metadata.SnapshotHash)
+    {
+        logger.LogWarning(&quot;Snapshot data corruption detected for {StreamId}&quot;, streamId);
+        return null; // Force full replay
+    }
+    
+    // Verify handler code hasn't changed
+    var currentHandlerHash = hashProvider.HashEventHandlers&lt;TAggregate&gt;();
+    if (currentHandlerHash != snapshot.Metadata.AggregateHash)
+    {
+        logger.LogInformation(&quot;Event handler code changed for {StreamId}, replay required&quot;, streamId);
+        return null; // Force replay due to handler changes
+    }
+    
+    return snapshot;
+}
+</code></pre>
+<h2 id="snapshot-strategies">Snapshot Strategies</h2>
+<h3 id="frequency-based">Frequency-Based</h3>
+<p>Create snapshots based on event count:</p>
+<pre><code class="language-csharp">public class FrequencySnapshotStrategy : ISnapshotStrategy
+{
+    private readonly int _eventFrequency;
+    
+    public FrequencySnapshotStrategy(int eventFrequency = 100)
+    {
+        _eventFrequency = eventFrequency;
+    }
+    
+    public bool ShouldCreateSnapshot(long currentVersion, DateTime lastSnapshotTime)
+    {
+        return currentVersion % _eventFrequency == 0;
+    }
+}
+</code></pre>
+<h3 id="time-based">Time-Based</h3>
+<p>Create snapshots based on time intervals:</p>
+<pre><code class="language-csharp">public class TimeBasedSnapshotStrategy : ISnapshotStrategy
+{
+    private readonly TimeSpan _interval;
+    
+    public TimeBasedSnapshotStrategy(TimeSpan interval)
+    {
+        _interval = interval;
+    }
+    
+    public bool ShouldCreateSnapshot(long currentVersion, DateTime lastSnapshotTime)
+    {
+        return DateTime.UtcNow - lastSnapshotTime &gt; _interval;
+    }
+}
+</code></pre>
+<h3 id="hybrid-strategy">Hybrid Strategy</h3>
+<p>Combine multiple strategies:</p>
+<pre><code class="language-csharp">public class HybridSnapshotStrategy : ISnapshotStrategy
+{
+    public bool ShouldCreateSnapshot(long currentVersion, DateTime lastSnapshotTime)
+    {
+        // Create snapshot if either condition is met
+        return currentVersion % 100 == 0 || // Every 100 events
+               DateTime.UtcNow - lastSnapshotTime &gt; TimeSpan.FromHours(1); // Every hour
+    }
+}
+</code></pre>
+<h2 id="snapshot-storage">Snapshot Storage</h2>
+<h3 id="in-memory-storage">In-Memory Storage</h3>
+<p>For development and testing:</p>
+<pre><code class="language-csharp">public class InMemorySnapshotStore : ISnapshotStore
+{
+    private readonly ConcurrentDictionary&lt;string, object&gt; _snapshots = new();
+    
+    public Task SaveSnapshotAsync&lt;TAggregate&gt;(string streamId, Snapshot&lt;TAggregate&gt; snapshot)
+    {
+        _snapshots[streamId] = snapshot;
+        return Task.CompletedTask;
+    }
+    
+    public Task&lt;Snapshot&lt;TAggregate&gt;?&gt; GetSnapshotAsync&lt;TAggregate&gt;(string streamId)
+    {
+        return Task.FromResult(_snapshots.TryGetValue(streamId, out var snapshot) 
+            ? (Snapshot&lt;TAggregate&gt;?)snapshot 
+            : null);
+    }
+}
+</code></pre>
+<h3 id="database-storage">Database Storage</h3>
+<p>For production scenarios:</p>
+<pre><code class="language-csharp">public class SqlSnapshotStore : ISnapshotStore
+{
+    public async Task SaveSnapshotAsync&lt;TAggregate&gt;(string streamId, Snapshot&lt;TAggregate&gt; snapshot)
+    {
+        var json = JsonSerializer.Serialize(snapshot.State);
+        
+        await connection.ExecuteAsync(&#64;&quot;
+            INSERT INTO Snapshots (StreamId, AggregateType, Version, Data, CreatedAt, SnapshotHash, AggregateHash)
+            VALUES (&#64;StreamId, &#64;AggregateType, &#64;Version, &#64;Data, &#64;CreatedAt, &#64;SnapshotHash, &#64;AggregateHash)&quot;,
+            new
+            {
+                StreamId = streamId,
+                AggregateType = typeof(TAggregate).FullName,
+                Version = snapshot.Metadata.EventVersion,
+                Data = json,
+                CreatedAt = snapshot.Metadata.CreatedAt,
+                SnapshotHash = snapshot.Metadata.SnapshotHash,
+                AggregateHash = snapshot.Metadata.AggregateHash
+            });
+    }
+}
+</code></pre>
+<h2 id="replay-from-snapshots">Replay from Snapshots</h2>
+<h3 id="optimal-replay-strategy">Optimal Replay Strategy</h3>
+<p>StreamDingo automatically chooses the best replay strategy:</p>
+<div class="mermaid">flowchart TD
+    A[Request Aggregate] --> B{Valid Snapshot Available?}
+    B -->|Yes| C[Load from Snapshot]
+    B -->|No| D[Full Replay from Beginning]
+    C --> E[Replay Events Since Snapshot]
+    E --> F[Current State]
+    D --> F
+</div>
+<h3 id="implementation">Implementation</h3>
+<pre><code class="language-csharp">public async Task&lt;TAggregate?&gt; ReplayEventsAsync&lt;TAggregate&gt;(string streamId)
+{
+    // Try to load verified snapshot
+    var snapshot = await LoadVerifiedSnapshotAsync&lt;TAggregate&gt;(streamId);
+    
+    TAggregate? currentState;
+    long fromVersion;
+    
+    if (snapshot != null)
+    {
+        currentState = snapshot.State;
+        fromVersion = snapshot.Metadata.EventVersion + 1;
+        logger.LogDebug(&quot;Loaded snapshot for {StreamId} at version {Version}&quot;, 
+            streamId, snapshot.Metadata.EventVersion);
+    }
+    else
+    {
+        currentState = default;
+        fromVersion = 0;
+        logger.LogDebug(&quot;No valid snapshot found for {StreamId}, replaying from beginning&quot;, streamId);
+    }
+    
+    // Replay events from snapshot point or beginning
+    var events = await eventStore.GetEventsAsync(streamId, fromVersion);
+    return await ApplyEventsAsync(currentState, events);
+}
+</code></pre>
+<h2 id="snapshot-cleanup">Snapshot Cleanup</h2>
+<h3 id="automatic-cleanup">Automatic Cleanup</h3>
+<p>Remove old snapshots to save storage:</p>
+<pre><code class="language-csharp">public class SnapshotCleanupService : IHostedService
+{
+    private readonly Timer _timer;
+    private readonly ISnapshotStore _snapshotStore;
+    
+    public async Task ExecuteAsync()
+    {
+        var cutoffDate = DateTime.UtcNow.AddDays(-30); // Keep 30 days
+        await _snapshotStore.DeleteSnapshotsOlderThanAsync(cutoffDate);
+    }
+}
+</code></pre>
+<h3 id="retention-policies">Retention Policies</h3>
+<p>Configure different retention policies:</p>
+<pre><code class="language-csharp">services.Configure&lt;SnapshotRetentionOptions&gt;(options =&gt;
+{
+    options.RetentionPolicies.Add(new SnapshotRetentionPolicy
+    {
+        AggregateType = typeof(UserAggregate),
+        MaxSnapshots = 5,
+        MaxAge = TimeSpan.FromDays(90)
+    });
+    
+    options.RetentionPolicies.Add(new SnapshotRetentionPolicy
+    {
+        AggregateType = typeof(OrderAggregate),
+        MaxSnapshots = 10,
+        MaxAge = TimeSpan.FromDays(365) // Orders kept longer
+    });
+});
+</code></pre>
+<h2 id="performance-optimization">Performance Optimization</h2>
+<h3 id="snapshot-size-optimization">Snapshot Size Optimization</h3>
+<p>Keep snapshots small for better performance:</p>
+<pre><code class="language-csharp">// ✅ Good: Minimal snapshot
+public record UserAggregateSnapshot(
+    string Id,
+    string Email,
+    UserStatus Status,
+    int Version
+);
+
+// ❌ Avoid: Including derived/computable data
+public record UserAggregateSnapshotBad(
+    string Id,
+    string Email,
+    UserStatus Status,
+    int Version,
+    string DisplayName,        // Can be computed
+    List&lt;string&gt; EventHistory, // Stored separately
+    Dictionary&lt;string, object&gt; Cache // Runtime data
+);
+</code></pre>
+<h3 id="compression">Compression</h3>
+<p>Compress large snapshots:</p>
+<pre><code class="language-csharp">public async Task SaveSnapshotAsync&lt;TAggregate&gt;(string streamId, Snapshot&lt;TAggregate&gt; snapshot)
+{
+    var json = JsonSerializer.Serialize(snapshot.State);
+    var compressed = await CompressionHelper.CompressAsync(json);
+    
+    // Store compressed data
+    await StoreCompressedSnapshotAsync(streamId, compressed, snapshot.Metadata);
+}
+</code></pre>
+<h2 id="testing-snapshots">Testing Snapshots</h2>
+<h3 id="snapshot-creation-tests">Snapshot Creation Tests</h3>
+<pre><code class="language-csharp">[Test]
+public async Task Should_Create_Snapshot_After_Threshold()
+{
+    // Arrange
+    var options = Options.Create(new SnapshotOptions { SnapshotEveryNEvents = 5 });
+    var streamManager = new EventStreamManager(eventStore, snapshotStore, options);
+    
+    // Act: Add events up to threshold
+    var events = Enumerable.Range(1, 5)
+        .Select(i =&gt; new UserEmailChanged($&quot;user-1&quot;, $&quot;email{i}&#64;example.com&quot;))
+        .Cast&lt;object&gt;();
+        
+    await streamManager.AppendEventsAsync(&quot;user-1&quot;, events);
+    
+    // Assert
+    var snapshot = await snapshotStore.GetSnapshotAsync&lt;UserAggregate&gt;(&quot;user-1&quot;);
+    Assert.That(snapshot, Is.Not.Null);
+    Assert.That(snapshot.Metadata.EventVersion, Is.EqualTo(5));
+}
+</code></pre>
+<h3 id="hash-verification-tests">Hash Verification Tests</h3>
+<pre><code class="language-csharp">[Test]
+public async Task Should_Reject_Corrupted_Snapshot()
+{
+    // Arrange
+    var validSnapshot = new Snapshot&lt;UserAggregate&gt;(
+        new UserAggregate(&quot;user-1&quot;, &quot;test&#64;example.com&quot;, &quot;Test User&quot;, UserStatus.Active, 5),
+        new SnapshotMetadata(&quot;user-1&quot;, 5, DateTime.UtcNow, &quot;valid-hash&quot;, &quot;valid-snapshot-hash&quot;)
+    );
+    
+    await snapshotStore.SaveSnapshotAsync(&quot;user-1&quot;, validSnapshot);
+    
+    // Act: Corrupt the snapshot hash
+    await CorruptSnapshotHashAsync(&quot;user-1&quot;);
+    
+    // Assert
+    var loadedSnapshot = await LoadVerifiedSnapshotAsync&lt;UserAggregate&gt;(&quot;user-1&quot;);
+    Assert.That(loadedSnapshot, Is.Null); // Should be rejected
+}
+</code></pre>
+<h2 id="common-issues-and-solutions">Common Issues and Solutions</h2>
+<h3 id="snapshot-version-mismatch">Snapshot Version Mismatch</h3>
+<pre><code class="language-csharp">// Problem: Aggregate schema changed but snapshot is old version
+public record UserAggregateV1(string Id, string Email);
+public record UserAggregateV2(string Id, string Email, string PhoneNumber);
+
+// Solution: Version-aware snapshot loading
+public async Task&lt;Snapshot&lt;TAggregate&gt;?&gt; GetSnapshotAsync&lt;TAggregate&gt;(string streamId)
+{
+    var snapshotData = await LoadSnapshotDataAsync(streamId);
+    if (snapshotData == null) return null;
+    
+    return snapshotData.AggregateVersion switch
+    {
+        1 =&gt; MigrateFromV1&lt;TAggregate&gt;(snapshotData),
+        2 =&gt; DeserializeV2&lt;TAggregate&gt;(snapshotData),
+        _ =&gt; throw new NotSupportedException($&quot;Unsupported snapshot version: {snapshotData.AggregateVersion}&quot;)
+    };
+}
+</code></pre>
+<h3 id="performance-issues">Performance Issues</h3>
+<p>Monitor snapshot performance:</p>
+<pre><code class="language-csharp">public async Task&lt;TAggregate?&gt; ReplayEventsAsync&lt;TAggregate&gt;(string streamId)
+{
+    using var activity = _activitySource.StartActivity(&quot;ReplayEvents&quot;);
+    activity?.SetTag(&quot;StreamId&quot;, streamId);
+    activity?.SetTag(&quot;AggregateType&quot;, typeof(TAggregate).Name);
+    
+    var stopwatch = Stopwatch.StartNew();
+    var snapshot = await LoadVerifiedSnapshotAsync&lt;TAggregate&gt;(streamId);
+    
+    if (snapshot != null)
+    {
+        activity?.SetTag(&quot;SnapshotUsed&quot;, true);
+        activity?.SetTag(&quot;SnapshotVersion&quot;, snapshot.Metadata.EventVersion);
+    }
+    
+    var result = await ReplayFromSnapshot(snapshot, streamId);
+    
+    activity?.SetTag(&quot;ReplayDurationMs&quot;, stopwatch.ElapsedMilliseconds);
+    return result;
+}
+</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li>Learn about <a href="hash-integrity.md">Hash Integrity</a> verification in detail</li>
+<li>Understand <a href="event-replay.md">Event Replay</a> strategies</li>
+<li>Explore <a href="storage-providers.md">Storage Providers</a> for different backends</li>
+<li>See <a href="../advanced/performance.md">Performance</a> optimization techniques</li>
+</ul>

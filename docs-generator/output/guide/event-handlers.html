@@ -1,0 +1,378 @@
+<h1 id="event-handlers">Event Handlers</h1>
+<p>Event handlers are the core building blocks of StreamDingo. They are pure functions that transform aggregate state by applying events.</p>
+<h2 id="handler-fundamentals">Handler Fundamentals</h2>
+<h3 id="pure-functions">Pure Functions</h3>
+<p>Event handlers must be pure functions with no side effects:</p>
+<pre><code class="language-csharp">// ✅ Good: Pure function
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+    =&gt; new UserAggregate(
+        Id: &#64;event.UserId,
+        Name: &#64;event.Name,
+        Email: &#64;event.Email,
+        Version: (state?.Version ?? 0) + 1
+    );
+
+// ❌ Bad: Has side effects
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+{
+    // Side effect: logging
+    Console.WriteLine($&quot;User created: {&#64;event.UserId}&quot;);
+    
+    // Side effect: external service call
+    emailService.SendWelcomeEmail(&#64;event.Email);
+    
+    return new UserAggregate(/*...*/);
+}
+</code></pre>
+<h3 id="handler-signature">Handler Signature</h3>
+<p>All event handlers must follow this signature:</p>
+<pre><code class="language-csharp">public static TAggregate Handle(TAggregate? previousState, TEvent &#64;event)
+{
+    // Handler logic
+    return newState;
+}
+</code></pre>
+<p>Where:</p>
+<ul>
+<li><code>TAggregate</code>: The aggregate type being modified</li>
+<li><code>TEvent</code>: The specific event type being handled</li>
+<li><code>previousState</code>: Can be null for the first event in a stream</li>
+<li>Return value: The new aggregate state</li>
+</ul>
+<h2 id="registration-patterns">Registration Patterns</h2>
+<h3 id="explicit-registration">Explicit Registration</h3>
+<p>Register handlers explicitly with the DI container:</p>
+<pre><code class="language-csharp">services.AddEventHandler&lt;UserAggregate, UserCreated&gt;(UserEventHandlers.Handle);
+services.AddEventHandler&lt;UserAggregate, UserEmailChanged&gt;(UserEventHandlers.Handle);
+services.AddEventHandler&lt;UserAggregate, UserDeactivated&gt;(UserEventHandlers.Handle);
+</code></pre>
+<h3 id="convention-based-registration">Convention-Based Registration</h3>
+<p>Use reflection to auto-register handlers:</p>
+<pre><code class="language-csharp">services.AddEventHandlersFromAssembly(typeof(UserEventHandlers).Assembly);
+
+// Or with naming convention
+services.AddEventHandlersWhere(type =&gt; 
+    type.Name.EndsWith(&quot;EventHandlers&quot;) &amp;&amp; 
+    type.IsPublic &amp;&amp; 
+    !type.IsAbstract);
+</code></pre>
+<h3 id="attribute-based-registration">Attribute-Based Registration</h3>
+<p>Use attributes to mark handlers for auto-registration:</p>
+<pre><code class="language-csharp">public class UserEventHandlers
+{
+    [EventHandler]
+    public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+        =&gt; /* handler logic */;
+    
+    [EventHandler]
+    public static UserAggregate Handle(UserAggregate state, UserEmailChanged &#64;event)
+        =&gt; /* handler logic */;
+}
+</code></pre>
+<h2 id="advanced-handler-patterns">Advanced Handler Patterns</h2>
+<h3 id="null-state-handling">Null State Handling</h3>
+<p>Always handle the case where previous state is null:</p>
+<pre><code class="language-csharp">public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+{
+    // First event - state will be null
+    if (state == null)
+    {
+        return new UserAggregate(
+            Id: &#64;event.UserId,
+            Name: &#64;event.Name,
+            Email: &#64;event.Email,
+            Version: 1
+        );
+    }
+    
+    // Subsequent events - should not happen for UserCreated
+    throw new InvalidOperationException(&quot;User already exists&quot;);
+}
+
+public static UserAggregate Handle(UserAggregate state, UserEmailChanged &#64;event)
+{
+    // State should never be null for update events
+    if (state == null)
+        throw new InvalidOperationException(&quot;Cannot update non-existent user&quot;);
+    
+    return state with 
+    { 
+        Email = &#64;event.NewEmail,
+        Version = state.Version + 1
+    };
+}
+</code></pre>
+<h3 id="validation-in-handlers">Validation in Handlers</h3>
+<p>Include business rule validation:</p>
+<pre><code class="language-csharp">public static AccountAggregate Handle(AccountAggregate state, MoneyWithdrawn &#64;event)
+{
+    if (state == null)
+        throw new InvalidOperationException(&quot;Cannot withdraw from non-existent account&quot;);
+    
+    if (&#64;event.Amount &lt;= 0)
+        throw new ArgumentException(&quot;Withdrawal amount must be positive&quot;);
+    
+    var newBalance = state.Balance - &#64;event.Amount;
+    if (newBalance &lt; 0 &amp;&amp; !state.AllowOverdraft)
+        throw new InvalidOperationException(&quot;Insufficient funds&quot;);
+    
+    return state with 
+    {
+        Balance = newBalance,
+        Version = state.Version + 1,
+        LastTransactionAt = &#64;event.WithdrawnAt
+    };
+}
+</code></pre>
+<h3 id="handling-multiple-event-types">Handling Multiple Event Types</h3>
+<p>Use pattern matching for multiple event types:</p>
+<pre><code class="language-csharp">public static UserAggregate Handle(UserAggregate? state, object &#64;event)
+    =&gt; &#64;event switch
+    {
+        UserCreated e =&gt; HandleUserCreated(state, e),
+        UserEmailChanged e =&gt; HandleUserEmailChanged(state, e),
+        UserDeactivated e =&gt; HandleUserDeactivated(state, e),
+        UserReactivated e =&gt; HandleUserReactivated(state, e),
+        _ =&gt; state ?? throw new InvalidOperationException(&quot;Unknown event type&quot;)
+    };
+
+private static UserAggregate HandleUserCreated(UserAggregate? state, UserCreated &#64;event)
+{
+    if (state != null)
+        throw new InvalidOperationException(&quot;User already exists&quot;);
+    
+    return new UserAggregate(/*...*/);
+}
+</code></pre>
+<h2 id="handler-organization">Handler Organization</h2>
+<h3 id="single-handler-class-per-aggregate">Single Handler Class per Aggregate</h3>
+<p>Organize handlers by aggregate:</p>
+<pre><code class="language-csharp">public static class UserEventHandlers
+{
+    public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event) { /*...*/ }
+    public static UserAggregate Handle(UserAggregate state, UserEmailChanged &#64;event) { /*...*/ }
+    public static UserAggregate Handle(UserAggregate state, UserDeactivated &#64;event) { /*...*/ }
+}
+
+public static class OrderEventHandlers  
+{
+    public static OrderAggregate Handle(OrderAggregate? state, OrderPlaced &#64;event) { /*...*/ }
+    public static OrderAggregate Handle(OrderAggregate state, OrderShipped &#64;event) { /*...*/ }
+    public static OrderAggregate Handle(OrderAggregate state, OrderCancelled &#64;event) { /*...*/ }
+}
+</code></pre>
+<h3 id="nested-handler-classes">Nested Handler Classes</h3>
+<p>Group related handlers:</p>
+<pre><code class="language-csharp">public static class UserEventHandlers
+{
+    public static class Creation
+    {
+        public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event) { /*...*/ }
+    }
+    
+    public static class ProfileManagement
+    {
+        public static UserAggregate Handle(UserAggregate state, UserNameChanged &#64;event) { /*...*/ }
+        public static UserAggregate Handle(UserAggregate state, UserEmailChanged &#64;event) { /*...*/ }
+    }
+    
+    public static class AccountManagement
+    {
+        public static UserAggregate Handle(UserAggregate state, UserDeactivated &#64;event) { /*...*/ }
+        public static UserAggregate Handle(UserAggregate state, UserReactivated &#64;event) { /*...*/ }
+    }
+}
+</code></pre>
+<h2 id="error-handling">Error Handling</h2>
+<h3 id="handler-exceptions">Handler Exceptions</h3>
+<p>When handlers throw exceptions, replay will stop at that point:</p>
+<pre><code class="language-csharp">public static UserAggregate Handle(UserAggregate state, UserEmailChanged &#64;event)
+{
+    if (string.IsNullOrWhiteSpace(&#64;event.NewEmail))
+        throw new ArgumentException(&quot;Email cannot be empty&quot;, nameof(&#64;event.NewEmail));
+    
+    if (!IsValidEmail(&#64;event.NewEmail))
+        throw new ArgumentException(&quot;Invalid email format&quot;, nameof(&#64;event.NewEmail));
+    
+    return state with { Email = &#64;event.NewEmail, Version = state.Version + 1 };
+}
+</code></pre>
+<h3 id="graceful-degradation">Graceful Degradation</h3>
+<p>For non-critical validation, consider logging instead of throwing:</p>
+<pre><code class="language-csharp">public static UserAggregate Handle(UserAggregate state, UserProfileUpdated &#64;event, ILogger logger)
+{
+    var newState = state with 
+    {
+        Name = &#64;event.NewName,
+        Version = state.Version + 1
+    };
+    
+    // Validate but don't fail
+    if (string.IsNullOrWhiteSpace(&#64;event.NewName))
+    {
+        logger.LogWarning(&quot;User {UserId} updated with empty name&quot;, state.Id);
+    }
+    
+    return newState;
+}
+</code></pre>
+<h2 id="performance-considerations">Performance Considerations</h2>
+<h3 id="avoid-heavy-computations">Avoid Heavy Computations</h3>
+<p>Keep handlers lightweight:</p>
+<pre><code class="language-csharp">// ❌ Avoid: Heavy computation in handler
+public static UserAggregate Handle(UserAggregate state, UserScoreCalculated &#64;event)
+{
+    // This should be done before creating the event
+    var complexScore = CalculateComplexUserScore(&#64;event.UserData);
+    
+    return state with { Score = complexScore };
+}
+
+// ✅ Better: Pre-computed values in events
+public static UserAggregate Handle(UserAggregate state, UserScoreCalculated &#64;event)
+{
+    return state with { Score = &#64;event.CalculatedScore };
+}
+</code></pre>
+<h3 id="use-records-for-immutability">Use Records for Immutability</h3>
+<p>Records provide efficient immutable updates:</p>
+<pre><code class="language-csharp">// ✅ Efficient with records
+return state with 
+{ 
+    Email = &#64;event.NewEmail,
+    Version = state.Version + 1
+};
+
+// ❌ Less efficient object creation
+return new UserAggregate(
+    state.Id,
+    state.Name,
+    &#64;event.NewEmail, // Only this changed
+    state.Status,
+    state.CreatedAt,
+    state.Version + 1
+);
+</code></pre>
+<h2 id="testing-event-handlers">Testing Event Handlers</h2>
+<h3 id="unit-testing">Unit Testing</h3>
+<p>Test handlers in isolation:</p>
+<pre><code class="language-csharp">[Test]
+public void UserCreated_Should_Create_New_User()
+{
+    // Arrange
+    var &#64;event = new UserCreated(&quot;user-1&quot;, &quot;John Doe&quot;, &quot;john&#64;example.com&quot;);
+    
+    // Act
+    var result = UserEventHandlers.Handle(null, &#64;event);
+    
+    // Assert
+    Assert.That(result.Id, Is.EqualTo(&quot;user-1&quot;));
+    Assert.That(result.Name, Is.EqualTo(&quot;John Doe&quot;));
+    Assert.That(result.Email, Is.EqualTo(&quot;john&#64;example.com&quot;));
+    Assert.That(result.Version, Is.EqualTo(1));
+}
+
+[Test]
+public void UserEmailChanged_Should_Update_Email()
+{
+    // Arrange
+    var state = new UserAggregate(&quot;user-1&quot;, &quot;John&quot;, &quot;old&#64;example.com&quot;, UserStatus.Active, 1);
+    var &#64;event = new UserEmailChanged(&quot;user-1&quot;, &quot;new&#64;example.com&quot;);
+    
+    // Act
+    var result = UserEventHandlers.Handle(state, &#64;event);
+    
+    // Assert
+    Assert.That(result.Email, Is.EqualTo(&quot;new&#64;example.com&quot;));
+    Assert.That(result.Version, Is.EqualTo(2));
+    Assert.That(result.Name, Is.EqualTo(&quot;John&quot;)); // Unchanged
+}
+</code></pre>
+<h3 id="property-based-testing">Property-Based Testing</h3>
+<p>Use property-based testing for handler invariants:</p>
+<pre><code class="language-csharp">[Property]
+public Property Handler_Should_Always_Increment_Version(UserAggregate state, UserEmailChanged &#64;event)
+{
+    var result = UserEventHandlers.Handle(state, &#64;event);
+    return (result.Version == state.Version + 1).ToProperty();
+}
+
+[Property]
+public Property Handler_Should_Preserve_Id(UserAggregate state, UserEmailChanged &#64;event)
+{
+    var result = UserEventHandlers.Handle(state, &#64;event);
+    return (result.Id == state.Id).ToProperty();
+}
+</code></pre>
+<h2 id="handler-versioning">Handler Versioning</h2>
+<h3 id="handling-schema-evolution">Handling Schema Evolution</h3>
+<p>When event schemas change, use versioned handlers:</p>
+<pre><code class="language-csharp">public static UserAggregate Handle(UserAggregate? state, UserCreatedV1 &#64;event)
+{
+    // Handle old version
+    return new UserAggregate(
+        Id: &#64;event.UserId,
+        Name: &#64;event.Name,
+        Email: &#64;event.Email,
+        PhoneNumber: null, // New field in V2
+        Version: (state?.Version ?? 0) + 1
+    );
+}
+
+public static UserAggregate Handle(UserAggregate? state, UserCreatedV2 &#64;event)  
+{
+    // Handle new version
+    return new UserAggregate(
+        Id: &#64;event.UserId,
+        Name: &#64;event.Name,
+        Email: &#64;event.Email,
+        PhoneNumber: &#64;event.PhoneNumber, // New in V2
+        Version: (state?.Version ?? 0) + 1
+    );
+}
+</code></pre>
+<h3 id="migration-handlers">Migration Handlers</h3>
+<p>Create handlers to migrate between versions:</p>
+<pre><code class="language-csharp">public static UserCreatedV2 Migrate(UserCreatedV1 oldEvent)
+{
+    return new UserCreatedV2(
+        UserId: oldEvent.UserId,
+        Name: oldEvent.Name,
+        Email: oldEvent.Email,
+        PhoneNumber: null // Default for missing field
+    );
+}
+</code></pre>
+<h2 id="hash-based-change-detection">Hash-Based Change Detection</h2>
+<p>StreamDingo uses hash-based change detection to determine when handlers have changed:</p>
+<h3 id="what-triggers-replay">What Triggers Replay</h3>
+<ul>
+<li>Handler method body changes</li>
+<li>Handler dependencies change (referenced methods, constants)</li>
+<li>Event type schema changes</li>
+</ul>
+<h3 id="optimizing-for-hash-stability">Optimizing for Hash Stability</h3>
+<p>Keep handlers stable to avoid unnecessary replays:</p>
+<pre><code class="language-csharp">// ✅ Stable: Logic unlikely to change
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+    =&gt; new UserAggregate(&#64;event.UserId, &#64;event.Name, &#64;event.Email, 1);
+
+// ❌ Unstable: Formatting/comments cause hash changes
+public static UserAggregate Handle(UserAggregate? state, UserCreated &#64;event)
+{
+    // TODO: Add validation
+    return new UserAggregate(
+        id: &#64;event.UserId,      // Changed parameter name
+        name: &#64;event.Name,
+        email: &#64;event.Email,
+        version: 1
+    );
+}
+</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li>Learn about <a href="snapshots.md">Snapshots</a> and their relationship to handlers</li>
+<li>Understand <a href="hash-integrity.md">Hash Integrity</a> verification</li>
+<li>Explore <a href="event-replay.md">Event Replay</a> strategies</li>
+<li>See <a href="storage-providers.md">Storage Providers</a> for persistence options</li>
+</ul>

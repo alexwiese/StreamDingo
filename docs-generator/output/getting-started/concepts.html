@@ -1,0 +1,134 @@
+<h1 id="basic-concepts">Basic Concepts</h1>
+<p>Understanding the core concepts of StreamDingo will help you build robust event-sourced applications.</p>
+<h2 id="event-sourcing-fundamentals">Event Sourcing Fundamentals</h2>
+<h3 id="events">Events</h3>
+<p>Events are immutable records of things that have happened in your system. In StreamDingo, events should be:</p>
+<ul>
+<li><strong>Immutable</strong>: Once created, events never change</li>
+<li><strong>Descriptive</strong>: Event names should describe what happened in past tense</li>
+<li><strong>Minimal</strong>: Include only the data necessary to represent the change</li>
+</ul>
+<pre><code class="language-csharp">// Good: Descriptive and minimal
+public record OrderPlaced(string OrderId, string CustomerId, decimal Amount, DateTime PlacedAt);
+
+// Avoid: Present tense or overly generic
+public record PlaceOrder(string OrderId, string CustomerId, decimal Amount);
+</code></pre>
+<h3 id="aggregates">Aggregates</h3>
+<p>Aggregates represent the current state of your domain entities, built by applying a sequence of events:</p>
+<pre><code class="language-csharp">public record OrderAggregate(
+    string Id,
+    string CustomerId, 
+    decimal Amount,
+    OrderStatus Status,
+    int Version
+);
+</code></pre>
+<h3 id="event-handlers">Event Handlers</h3>
+<p>Event handlers are pure functions that take the current aggregate state and an event, returning the new state:</p>
+<pre><code class="language-csharp">public static OrderAggregate Handle(OrderAggregate? state, OrderPlaced &#64;event)
+    =&gt; new(&#64;event.OrderId, &#64;event.CustomerId, &#64;event.Amount, OrderStatus.Placed, (state?.Version ?? 0) + 1);
+</code></pre>
+<h2 id="streamdingo-specific-concepts">StreamDingo Specific Concepts</h2>
+<h3 id="hash-based-integrity">Hash-Based Integrity</h3>
+<p>StreamDingo uses the <a href="https://github.com/alexwiese/hashstamp">alexwiese/hashstamp</a> library to ensure integrity:</p>
+<ul>
+<li><strong>Event Handler Hashing</strong>: Detects when handler logic changes</li>
+<li><strong>Snapshot Hashing</strong>: Verifies snapshot data hasn't been tampered with</li>
+<li><strong>Event Hashing</strong>: Ensures events haven't been modified</li>
+</ul>
+<h3 id="snapshots">Snapshots</h3>
+<p>Snapshots are cached aggregate states that improve replay performance:</p>
+<ul>
+<li>Created automatically at configurable intervals</li>
+<li>Include hash verification for data integrity</li>
+<li>Enable efficient replay from intermediate points</li>
+<li>Reduce the need to replay all events from the beginning</li>
+</ul>
+<h3 id="event-replay">Event Replay</h3>
+<p>When changes are detected, StreamDingo intelligently replays events:</p>
+<ul>
+<li><strong>Handler Changes</strong>: Replay events affected by handler logic changes</li>
+<li><strong>Snapshot Corruption</strong>: Replay from the last valid snapshot</li>
+<li><strong>Order Changes</strong>: Replay when event ordering is modified</li>
+</ul>
+<h2 id="event-stream-architecture">Event Stream Architecture</h2>
+<div class="mermaid">graph TB
+    A[Events] --> B[Event Store]
+    B --> C[Event Replay Engine]
+    C --> D[Event Handlers]
+    D --> E[Snapshots]
+    E --> F[Current State]
+    
+    G[Hash Provider] --> D
+    G --> E
+    H[Snapshot Store] --> E
+</div>
+<h3 id="event-store">Event Store</h3>
+<ul>
+<li>Persists events in ordered streams</li>
+<li>Supports multiple storage providers (In-Memory, SQL Server, PostgreSQL)</li>
+<li>Ensures event ordering and consistency</li>
+</ul>
+<h3 id="snapshot-store">Snapshot Store</h3>
+<ul>
+<li>Stores aggregate snapshots with hash verification</li>
+<li>Enables fast state reconstruction</li>
+<li>Automatic cleanup of old snapshots</li>
+</ul>
+<h3 id="hash-provider">Hash Provider</h3>
+<ul>
+<li>Generates and verifies hashes for integrity checking</li>
+<li>Integrates with alexwiese/hashstamp library</li>
+<li>Detects code changes and data corruption</li>
+</ul>
+<h2 id="best-practices">Best Practices</h2>
+<h3 id="event-design">Event Design</h3>
+<ol>
+<li><strong>Use past tense</strong>: <code>OrderPlaced</code> not <code>PlaceOrder</code></li>
+<li><strong>Be specific</strong>: <code>PaymentProcessed</code> not <code>OrderUpdated</code></li>
+<li><strong>Include context</strong>: Add relevant timestamps and user information</li>
+</ol>
+<h3 id="handler-design">Handler Design</h3>
+<ol>
+<li><strong>Keep handlers pure</strong>: No side effects or external dependencies</li>
+<li><strong>Handle nulls</strong>: First event should handle null previous state</li>
+<li><strong>Version tracking</strong>: Always increment version numbers</li>
+</ol>
+<h3 id="aggregate-design">Aggregate Design</h3>
+<ol>
+<li><strong>Include version</strong>: Track aggregate version for optimistic concurrency</li>
+<li><strong>Keep focused</strong>: Aggregates should have a single responsibility</li>
+<li><strong>Use records</strong>: Immutable records work well for aggregate state</li>
+</ol>
+<h2 id="common-patterns">Common Patterns</h2>
+<h3 id="command-event-pattern">Command-Event Pattern</h3>
+<pre><code class="language-csharp">// Command (intent)
+public record PlaceOrderCommand(string OrderId, string CustomerId, decimal Amount);
+
+// Event (fact)
+public record OrderPlaced(string OrderId, string CustomerId, decimal Amount, DateTime PlacedAt);
+
+// Handler
+public class OrderCommandHandler
+{
+    public async Task&lt;IEnumerable&lt;object&gt;&gt; Handle(PlaceOrderCommand command)
+    {
+        // Validation logic here
+        return new[] { new OrderPlaced(command.OrderId, command.CustomerId, command.Amount, DateTime.UtcNow) };
+    }
+}
+</code></pre>
+<h3 id="saga-pattern">Saga Pattern</h3>
+<p>For long-running processes that span multiple aggregates:</p>
+<pre><code class="language-csharp">public record OrderSagaState(string OrderId, bool PaymentProcessed, bool InventoryReserved, bool EmailSent);
+
+public static OrderSagaState Handle(OrderSagaState? state, OrderPlaced &#64;event)
+    =&gt; new(&#64;event.OrderId, false, false, false);
+</code></pre>
+<h2 id="next-steps">Next Steps</h2>
+<ul>
+<li>Learn about <a href="../guide/event-handlers.md">Event Handlers</a> in detail</li>
+<li>Understand <a href="../guide/snapshots.md">Snapshot Management</a></li>
+<li>Explore <a href="../guide/hash-integrity.md">Hash Integrity Verification</a></li>
+</ul>

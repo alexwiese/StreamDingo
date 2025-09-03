@@ -1,0 +1,302 @@
+<h1 id="streamdingo-api-design-principles">StreamDingo - API Design Principles</h1>
+<blockquote>
+<p><strong>Guiding principles for consistent, performant, and user-friendly API design</strong></p>
+</blockquote>
+<h2 id="core-philosophy">🎯 Core Philosophy</h2>
+<p>StreamDingo follows these fundamental principles in all API design decisions:</p>
+<ol>
+<li><strong>Simplicity Over Flexibility</strong>: Prefer simple, obvious APIs over complex, highly configurable ones</li>
+<li><strong>Performance by Default</strong>: Design for performance without requiring optimization expertise</li>
+<li><strong>Fail Fast</strong>: Validate early and provide clear error messages</li>
+<li><strong>Async by Design</strong>: All I/O operations are async with proper cancellation support</li>
+<li><strong>Immutable State</strong>: Prefer immutable objects and pure functions where possible</li>
+</ol>
+<h2 id="api-design-rules">🔧 API Design Rules</h2>
+<h3 id="method-naming-conventions">1. Method Naming Conventions</h3>
+<h4 id="async-operations">Async Operations</h4>
+<ul>
+<li>All async methods MUST end with <code>Async</code></li>
+<li>Return <code>ValueTask&lt;T&gt;</code> for potentially synchronous operations</li>
+<li>Return <code>Task&lt;T&gt;</code> for always asynchronous operations</li>
+<li>Always accept <code>CancellationToken</code> as the last parameter</li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good
+ValueTask&lt;Snapshot&lt;T&gt;?&gt; GetLatestSnapshotAsync&lt;T&gt;(string streamId, CancellationToken cancellationToken = default);
+
+// ❌ Bad  
+Task&lt;Snapshot&lt;T&gt;?&gt; GetLatestSnapshot&lt;T&gt;(string streamId);
+</code></pre>
+<h4 id="sync-operations">Sync Operations</h4>
+<ul>
+<li>Avoid synchronous I/O operations</li>
+<li>Use for pure functions and in-memory operations only</li>
+<li>Prefer <code>Span&lt;T&gt;</code> and <code>ReadOnlySpan&lt;T&gt;</code> for buffer operations</li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good - Pure function
+string CalculateHash(ReadOnlySpan&lt;byte&gt; data);
+
+// ❌ Bad - I/O operation
+Snapshot&lt;T&gt; GetLatestSnapshot&lt;T&gt;(string streamId);
+</code></pre>
+<h3 id="parameter-design">2. Parameter Design</h3>
+<h4 id="required-parameters">Required Parameters</h4>
+<ul>
+<li>Required parameters come first</li>
+<li>Use descriptive parameter names</li>
+<li>Avoid <code>object</code> parameters unless absolutely necessary</li>
+</ul>
+<h4 id="optional-parameters">Optional Parameters</h4>
+<ul>
+<li>Use default parameter values where logical</li>
+<li>Group related optional parameters into options objects</li>
+<li>Use nullable types for truly optional values</li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good
+ValueTask AppendEventAsync&lt;T&gt;(string streamId, T &#64;event, 
+    EventAppendOptions? options = null, CancellationToken cancellationToken = default);
+
+// ❌ Bad
+ValueTask AppendEventAsync&lt;T&gt;(string streamId, T &#64;event, bool validateHash = true, 
+    int timeoutMs = 30000, bool createSnapshot = false, CancellationToken cancellationToken = default);
+</code></pre>
+<h3 id="generic-type-design">3. Generic Type Design</h3>
+<h4 id="type-constraints">Type Constraints</h4>
+<ul>
+<li>Use meaningful constraints that communicate intent</li>
+<li>Prefer interface constraints over class constraints</li>
+<li>Use <code>where T : class</code> for reference types that can be null</li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good
+public interface IEventHandler&lt;TState, TEvent&gt;
+    where TState : class
+    where TEvent : IEvent
+{
+    TState Handle(TState? previousSnapshot, TEvent &#64;event);
+}
+
+// ❌ Bad
+public interface IEventHandler&lt;TState, TEvent&gt;
+{
+    TState Handle(TState previousSnapshot, TEvent &#64;event);
+}
+</code></pre>
+<h3 id="exception-handling">4. Exception Handling</h3>
+<h4 id="custom-exceptions">Custom Exceptions</h4>
+<ul>
+<li>Create specific exception types for different error scenarios</li>
+<li>Include relevant context in exception messages</li>
+<li>Use inner exceptions to preserve stack traces</li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good
+public class EventReplayException : Exception
+{
+    public string StreamId { get; }
+    public long Version { get; }
+    
+    public EventReplayException(string streamId, long version, string message, Exception? innerException = null)
+        : base($&quot;Failed to replay events for stream '{streamId}' at version {version}: {message}&quot;, innerException)
+    {
+        StreamId = streamId;
+        Version = version;
+    }
+}
+
+// ❌ Bad
+throw new Exception(&quot;Replay failed&quot;);
+</code></pre>
+<h4 id="error-communication">Error Communication</h4>
+<ul>
+<li>Use Result&lt;T, TError&gt; pattern for expected failures</li>
+<li>Reserve exceptions for unexpected errors</li>
+<li>Provide retry guidance in error messages</li>
+</ul>
+<h3 id="configuration-and-options">5. Configuration and Options</h3>
+<h4 id="builder-pattern">Builder Pattern</h4>
+<ul>
+<li>Use fluent builder APIs for complex configuration</li>
+<li>Provide reasonable defaults for all optional settings</li>
+<li>Validate configuration at build time, not runtime</li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good
+var eventSourcing = EventSourcingBuilder
+    .Create()
+    .UseInMemoryStore()
+    .WithSnapshotInterval(100)
+    .EnableHashVerification()
+    .Build();
+
+// ❌ Bad
+var options = new EventSourcingOptions
+{
+    StoreType = EventStoreType.InMemory,
+    SnapshotInterval = 100,
+    HashVerificationEnabled = true
+};
+var eventSourcing = new EventSourcingEngine(options);
+</code></pre>
+<h4 id="options-classes">Options Classes</h4>
+<ul>
+<li>Use record types for immutable options</li>
+<li>Group related settings together</li>
+<li>Provide validation methods</li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good
+public record EventSourcingOptions
+{
+    public int SnapshotInterval { get; init; } = 100;
+    public bool EnableHashVerification { get; init; } = true;
+    public TimeSpan EventTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    
+    public void Validate()
+    {
+        if (SnapshotInterval &lt;= 0)
+            throw new ArgumentException(&quot;SnapshotInterval must be positive&quot;, nameof(SnapshotInterval));
+    }
+}
+</code></pre>
+<h3 id="dependency-injection-integration">6. Dependency Injection Integration</h3>
+<h4 id="service-registration">Service Registration</h4>
+<ul>
+<li>Provide extension methods for <code>IServiceCollection</code></li>
+<li>Support both singleton and scoped lifetimes appropriately</li>
+<li>Allow configuration via <code>IConfiguration</code></li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddStreamDingo(this IServiceCollection services,
+        Action&lt;EventSourcingBuilder&gt;? configure = null)
+    {
+        var builder = EventSourcingBuilder.Create();
+        configure?.Invoke(builder);
+        
+        services.AddSingleton(builder.Build());
+        return services;
+    }
+}
+</code></pre>
+<h3 id="serialization">7. Serialization</h3>
+<h4 id="flexible-serialization">Flexible Serialization</h4>
+<ul>
+<li>Support multiple serialization providers</li>
+<li>Default to System.Text.Json for .NET objects</li>
+<li>Allow custom serializers for specific types</li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good
+public interface IEventSerializer
+{
+    ReadOnlyMemory&lt;byte&gt; Serialize&lt;T&gt;(T obj) where T : IEvent;
+    T Deserialize&lt;T&gt;(ReadOnlyMemory&lt;byte&gt; data) where T : IEvent;
+    object Deserialize(ReadOnlyMemory&lt;byte&gt; data, Type eventType);
+}
+</code></pre>
+<h3 id="observability-integration">8. Observability Integration</h3>
+<h4 id="logging">Logging</h4>
+<ul>
+<li>Use <code>ILogger&lt;T&gt;</code> for all logging</li>
+<li>Provide structured logging with relevant context</li>
+<li>Use appropriate log levels</li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good  
+_logger.LogInformation(&quot;Event appended to stream {StreamId} at version {Version}&quot;, 
+    streamId, version);
+
+// ❌ Bad
+_logger.LogInformation($&quot;Event appended to stream {streamId} at version {version}&quot;);
+</code></pre>
+<h4 id="metrics">Metrics</h4>
+<ul>
+<li>Expose key metrics via .NET meters</li>
+<li>Use consistent naming conventions</li>
+<li>Provide both counter and histogram metrics</li>
+</ul>
+<pre><code class="language-csharp">// ✅ Good
+public static class StreamDingoMetrics
+{
+    private static readonly Meter Meter = new(&quot;StreamDingo.EventSourcing&quot;);
+    
+    public static readonly Counter&lt;long&gt; EventsAppended = 
+        Meter.CreateCounter&lt;long&gt;(&quot;streamdingo.events.appended&quot;);
+    
+    public static readonly Histogram&lt;double&gt; ReplayDuration = 
+        Meter.CreateHistogram&lt;double&gt;(&quot;streamdingo.replay.duration&quot;, &quot;ms&quot;);
+}
+</code></pre>
+<h2 id="target-use-cases">🎯 Target Use Cases</h2>
+<h3 id="simple-event-sourcing">1. Simple Event Sourcing</h3>
+<pre><code class="language-csharp">// Minimal setup for basic event sourcing
+var eventSourcing = EventSourcingBuilder
+    .Create()
+    .UseInMemoryStore()
+    .Build();
+
+await eventSourcing.AppendEventAsync(&quot;order-123&quot;, new OrderCreated(&quot;123&quot;, &quot;John Doe&quot;));
+var currentState = await eventSourcing.GetCurrentStateAsync&lt;OrderState&gt;(&quot;order-123&quot;);
+</code></pre>
+<h3 id="production-event-sourcing">2. Production Event Sourcing</h3>
+<pre><code class="language-csharp">// Full production setup with SQL Server and monitoring
+var eventSourcing = EventSourcingBuilder
+    .Create()
+    .UseSqlServer(connectionString)
+    .WithSnapshotInterval(500)
+    .EnableHashVerification()
+    .EnableTelemetry()
+    .Build();
+</code></pre>
+<h3 id="custom-event-processing">3. Custom Event Processing</h3>
+<pre><code class="language-csharp">// Custom event handler registration
+eventSourcing.RegisterHandler&lt;OrderState, OrderCreated&gt;(new OrderCreatedHandler());
+eventSourcing.RegisterHandler&lt;OrderState, OrderShipped&gt;(new OrderShippedHandler());
+</code></pre>
+<h2 id="backward-compatibility">🛡️ Backward Compatibility</h2>
+<h3 id="versioning-strategy">Versioning Strategy</h3>
+<ul>
+<li>Follow Semantic Versioning (SemVer)</li>
+<li>Major version for breaking changes</li>
+<li>Minor version for new features</li>
+<li>Patch version for bug fixes</li>
+</ul>
+<h3 id="api-evolution">API Evolution</h3>
+<ul>
+<li>Mark obsolete APIs with <code>[Obsolete]</code> attribute</li>
+<li>Provide migration path in XML documentation</li>
+<li>Support old APIs for at least one major version</li>
+<li>Use <code>#pragma warning disable</code> sparingly</li>
+</ul>
+<h3 id="breaking-change-guidelines">Breaking Change Guidelines</h3>
+<ul>
+<li>Avoid breaking changes in minor versions</li>
+<li>Document all breaking changes in release notes</li>
+<li>Provide automated migration tools where possible</li>
+<li>Consider feature flags for gradual migration</li>
+</ul>
+<h2 id="code-review-checklist">🔍 Code Review Checklist</h2>
+<h3 id="api-design-review">API Design Review</h3>
+<ul class="contains-task-list">
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Method names follow async/sync conventions</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Parameters are in correct order (required first, cancellation token last)</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Generic constraints are meaningful and necessary</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Return types use ValueTask<T> appropriately</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Exceptions are specific and meaningful</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> XML documentation is complete and accurate</li>
+</ul>
+<h3 id="performance-review">Performance Review</h3>
+<ul class="contains-task-list">
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> No unnecessary allocations in hot paths</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Proper use of Span<T> and Memory<T></li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Object pooling considered for frequent allocations</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Async methods don't block synchronously</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Cancellation tokens are properly propagated</li>
+</ul>
+<h3 id="testing-review">Testing Review</h3>
+<ul class="contains-task-list">
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Unit tests cover happy path and edge cases</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Integration tests validate end-to-end scenarios</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Performance tests validate targets are met</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Error handling tests validate exception behavior</li>
+<li class="task-list-item"><input disabled="disabled" type="checkbox" /> Async tests properly handle cancellation</li>
+</ul>
+<hr />
+<p><strong>Last Updated</strong>: $(date)<br />
+<strong>Version</strong>: 1.0<br />
+<strong>Status</strong>: Draft</p>
