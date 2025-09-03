@@ -7,11 +7,11 @@ namespace StreamDingo.Examples.WebApp.Handlers;
 /// <summary>
 /// Handles business creation events.
 /// </summary>
-public class BusinessCreatedHandler : IEventHandler<DomainSnapshot, BusinessCreated>
+public class BusinessCreatedHandler : IEventHandler<BusinessAggregate, BusinessCreated>
 {
-    public DomainSnapshot Handle(DomainSnapshot? previousSnapshot, BusinessCreated @event)
+    public BusinessAggregate Handle(BusinessAggregate? previousSnapshot, BusinessCreated @event)
     {
-        var snapshot = previousSnapshot ?? new DomainSnapshot();
+        var snapshot = previousSnapshot ?? new BusinessAggregate();
         
         var business = new Business
         {
@@ -26,7 +26,7 @@ public class BusinessCreatedHandler : IEventHandler<DomainSnapshot, BusinessCrea
             IsDeleted = false
         };
         
-        snapshot.Businesses[@event.BusinessId] = business;
+        snapshot.Business = business;
         return snapshot;
     }
 }
@@ -34,20 +34,20 @@ public class BusinessCreatedHandler : IEventHandler<DomainSnapshot, BusinessCrea
 /// <summary>
 /// Handles business update events.
 /// </summary>
-public class BusinessUpdatedHandler : IEventHandler<DomainSnapshot, BusinessUpdated>
+public class BusinessUpdatedHandler : IEventHandler<BusinessAggregate, BusinessUpdated>
 {
-    public DomainSnapshot Handle(DomainSnapshot? previousSnapshot, BusinessUpdated @event)
+    public BusinessAggregate Handle(BusinessAggregate? previousSnapshot, BusinessUpdated @event)
     {
-        var snapshot = previousSnapshot ?? new DomainSnapshot();
+        var snapshot = previousSnapshot ?? new BusinessAggregate();
         
-        if (snapshot.Businesses.TryGetValue(@event.BusinessId, out var existingBusiness))
+        if (snapshot.Business != null)
         {
-            existingBusiness.Name = @event.Name;
-            existingBusiness.Description = @event.Description;
-            existingBusiness.Industry = @event.Industry;
-            existingBusiness.Address = @event.Address;
-            existingBusiness.Website = @event.Website;
-            existingBusiness.UpdatedAt = @event.Timestamp;
+            snapshot.Business.Name = @event.Name;
+            snapshot.Business.Description = @event.Description;
+            snapshot.Business.Industry = @event.Industry;
+            snapshot.Business.Address = @event.Address;
+            snapshot.Business.Website = @event.Website;
+            snapshot.Business.UpdatedAt = @event.Timestamp;
         }
         
         return snapshot;
@@ -57,16 +57,16 @@ public class BusinessUpdatedHandler : IEventHandler<DomainSnapshot, BusinessUpda
 /// <summary>
 /// Handles business deletion events.
 /// </summary>
-public class BusinessDeletedHandler : IEventHandler<DomainSnapshot, BusinessDeleted>
+public class BusinessDeletedHandler : IEventHandler<BusinessAggregate, BusinessDeleted>
 {
-    public DomainSnapshot Handle(DomainSnapshot? previousSnapshot, BusinessDeleted @event)
+    public BusinessAggregate Handle(BusinessAggregate? previousSnapshot, BusinessDeleted @event)
     {
-        var snapshot = previousSnapshot ?? new DomainSnapshot();
+        var snapshot = previousSnapshot ?? new BusinessAggregate();
         
-        if (snapshot.Businesses.TryGetValue(@event.BusinessId, out var existingBusiness))
+        if (snapshot.Business != null)
         {
-            existingBusiness.IsDeleted = true;
-            existingBusiness.UpdatedAt = @event.Timestamp;
+            snapshot.Business.IsDeleted = true;
+            snapshot.Business.UpdatedAt = @event.Timestamp;
         }
         
         return snapshot;

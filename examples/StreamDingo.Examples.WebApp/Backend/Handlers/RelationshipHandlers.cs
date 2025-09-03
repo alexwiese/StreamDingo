@@ -7,11 +7,11 @@ namespace StreamDingo.Examples.WebApp.Handlers;
 /// <summary>
 /// Handles relationship creation events.
 /// </summary>
-public class RelationshipCreatedHandler : IEventHandler<DomainSnapshot, RelationshipCreated>
+public class RelationshipCreatedHandler : IEventHandler<UserAggregate, RelationshipCreated>
 {
-    public DomainSnapshot Handle(DomainSnapshot? previousSnapshot, RelationshipCreated @event)
+    public UserAggregate Handle(UserAggregate? previousSnapshot, RelationshipCreated @event)
     {
-        var snapshot = previousSnapshot ?? new DomainSnapshot();
+        var snapshot = previousSnapshot ?? new UserAggregate();
         
         var relationship = new Relationship
         {
@@ -36,11 +36,11 @@ public class RelationshipCreatedHandler : IEventHandler<DomainSnapshot, Relation
 /// <summary>
 /// Handles relationship update events.
 /// </summary>
-public class RelationshipUpdatedHandler : IEventHandler<DomainSnapshot, RelationshipUpdated>
+public class RelationshipUpdatedHandler : IEventHandler<UserAggregate, RelationshipUpdated>
 {
-    public DomainSnapshot Handle(DomainSnapshot? previousSnapshot, RelationshipUpdated @event)
+    public UserAggregate Handle(UserAggregate? previousSnapshot, RelationshipUpdated @event)
     {
-        var snapshot = previousSnapshot ?? new DomainSnapshot();
+        var snapshot = previousSnapshot ?? new UserAggregate();
         
         if (snapshot.Relationships.TryGetValue(@event.RelationshipId, out var existingRelationship))
         {
@@ -60,11 +60,11 @@ public class RelationshipUpdatedHandler : IEventHandler<DomainSnapshot, Relation
 /// <summary>
 /// Handles relationship deletion events.
 /// </summary>
-public class RelationshipDeletedHandler : IEventHandler<DomainSnapshot, RelationshipDeleted>
+public class RelationshipDeletedHandler : IEventHandler<UserAggregate, RelationshipDeleted>
 {
-    public DomainSnapshot Handle(DomainSnapshot? previousSnapshot, RelationshipDeleted @event)
+    public UserAggregate Handle(UserAggregate? previousSnapshot, RelationshipDeleted @event)
     {
-        var snapshot = previousSnapshot ?? new DomainSnapshot();
+        var snapshot = previousSnapshot ?? new UserAggregate();
         
         if (snapshot.Relationships.TryGetValue(@event.RelationshipId, out var existingRelationship))
         {

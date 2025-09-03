@@ -7,11 +7,11 @@ namespace StreamDingo.Examples.WebApp.Handlers;
 /// <summary>
 /// Handles user creation events.
 /// </summary>
-public class UserCreatedHandler : IEventHandler<DomainSnapshot, UserCreated>
+public class UserCreatedHandler : IEventHandler<UserAggregate, UserCreated>
 {
-    public DomainSnapshot Handle(DomainSnapshot? previousSnapshot, UserCreated @event)
+    public UserAggregate Handle(UserAggregate? previousSnapshot, UserCreated @event)
     {
-        var snapshot = previousSnapshot ?? new DomainSnapshot();
+        var snapshot = previousSnapshot ?? new UserAggregate();
         
         var user = new User
         {
@@ -25,7 +25,7 @@ public class UserCreatedHandler : IEventHandler<DomainSnapshot, UserCreated>
             IsDeleted = false
         };
         
-        snapshot.Users[@event.UserId] = user;
+        snapshot.User = user;
         return snapshot;
     }
 }
@@ -33,19 +33,19 @@ public class UserCreatedHandler : IEventHandler<DomainSnapshot, UserCreated>
 /// <summary>
 /// Handles user update events.
 /// </summary>
-public class UserUpdatedHandler : IEventHandler<DomainSnapshot, UserUpdated>
+public class UserUpdatedHandler : IEventHandler<UserAggregate, UserUpdated>
 {
-    public DomainSnapshot Handle(DomainSnapshot? previousSnapshot, UserUpdated @event)
+    public UserAggregate Handle(UserAggregate? previousSnapshot, UserUpdated @event)
     {
-        var snapshot = previousSnapshot ?? new DomainSnapshot();
+        var snapshot = previousSnapshot ?? new UserAggregate();
         
-        if (snapshot.Users.TryGetValue(@event.UserId, out var existingUser))
+        if (snapshot.User != null)
         {
-            existingUser.FirstName = @event.FirstName;
-            existingUser.LastName = @event.LastName;
-            existingUser.Email = @event.Email;
-            existingUser.PhoneNumber = @event.PhoneNumber;
-            existingUser.UpdatedAt = @event.Timestamp;
+            snapshot.User.FirstName = @event.FirstName;
+            snapshot.User.LastName = @event.LastName;
+            snapshot.User.Email = @event.Email;
+            snapshot.User.PhoneNumber = @event.PhoneNumber;
+            snapshot.User.UpdatedAt = @event.Timestamp;
         }
         
         return snapshot;
@@ -55,16 +55,16 @@ public class UserUpdatedHandler : IEventHandler<DomainSnapshot, UserUpdated>
 /// <summary>
 /// Handles user deletion events.
 /// </summary>
-public class UserDeletedHandler : IEventHandler<DomainSnapshot, UserDeleted>
+public class UserDeletedHandler : IEventHandler<UserAggregate, UserDeleted>
 {
-    public DomainSnapshot Handle(DomainSnapshot? previousSnapshot, UserDeleted @event)
+    public UserAggregate Handle(UserAggregate? previousSnapshot, UserDeleted @event)
     {
-        var snapshot = previousSnapshot ?? new DomainSnapshot();
+        var snapshot = previousSnapshot ?? new UserAggregate();
         
-        if (snapshot.Users.TryGetValue(@event.UserId, out var existingUser))
+        if (snapshot.User != null)
         {
-            existingUser.IsDeleted = true;
-            existingUser.UpdatedAt = @event.Timestamp;
+            snapshot.User.IsDeleted = true;
+            snapshot.User.UpdatedAt = @event.Timestamp;
         }
         
         return snapshot;

@@ -12,34 +12,38 @@ namespace StreamDingo.Examples.WebApp.Controllers;
 [Route("api/[controller]")]
 public class BusinessesController : ControllerBase
 {
-    private readonly IEventStreamManager<DomainSnapshot> _streamManager;
-    private const string StreamId = "domain-stream";
+    private readonly IEventStreamManager<BusinessAggregate> _streamManager;
 
-    public BusinessesController(IEventStreamManager<DomainSnapshot> streamManager)
+    public BusinessesController(IEventStreamManager<BusinessAggregate> streamManager)
     {
         _streamManager = streamManager;
     }
 
     /// <summary>
-    /// Gets all businesses.
+    /// Gets all businesses - this is a simplified implementation.
+    /// In a real system, you'd typically have a read model or query all business streams.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Business>>> GetBusinesses()
+    public ActionResult<IEnumerable<Business>> GetBusinesses()
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        return Ok(snapshot?.ActiveBusinesses ?? Enumerable.Empty<Business>());
+        // Note: This is a simplified implementation for demo purposes.
+        // In a production system, you'd typically maintain a read model 
+        // or use a different approach to list all businesses.
+        return Ok(new List<Business>());
     }
 
     /// <summary>
-    /// Gets a specific business by ID.
+    /// Gets a specific business by ID using their individual stream.
     /// </summary>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<Business>> GetBusiness(Guid id)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Businesses.TryGetValue(id, out var business) == true && !business.IsDeleted)
+        var streamId = $"business-{id}";
+        var businessAggregate = await _streamManager.GetCurrentStateAsync(streamId);
+        
+        if (businessAggregate?.ActiveBusiness != null)
         {
-            return Ok(business);
+            return Ok(businessAggregate.ActiveBusiness);
         }
         return NotFound();
     }
@@ -51,6 +55,8 @@ public class BusinessesController : ControllerBase
     public async Task<ActionResult<Business>> CreateBusiness(CreateBusinessRequest request)
     {
         var businessId = Guid.NewGuid();
+        var streamId = $"business-{businessId}";
+        
         var @event = new BusinessCreated
         {
             BusinessId = businessId,
@@ -62,9 +68,9 @@ public class BusinessesController : ControllerBase
             Version = 0
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        var snapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
-        var business = snapshot?.Businesses.GetValueOrDefault(businessId);
+        var currentVersion = await GetStreamVersionAsync(streamId);
+        var businessAggregate = await _streamManager.AppendEventAsync(streamId, @event, currentVersion);
+        var business = businessAggregate?.ActiveBusiness;
         
         return business != null ? CreatedAtAction(nameof(GetBusiness), new { id = businessId }, business) : StatusCode(500);
     }
@@ -75,8 +81,10 @@ public class BusinessesController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<Business>> UpdateBusiness(Guid id, UpdateBusinessRequest request)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Businesses.TryGetValue(id, out var existingBusiness) != true || existingBusiness.IsDeleted)
+        var streamId = $"business-{id}";
+        var businessAggregate = await _streamManager.GetCurrentStateAsync(streamId);
+        
+        if (businessAggregate?.ActiveBusiness == null)
         {
             return NotFound();
         }
@@ -92,9 +100,9 @@ public class BusinessesController : ControllerBase
             Version = 0
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
-        var updatedBusiness = updatedSnapshot?.Businesses.GetValueOrDefault(id);
+        var currentVersion = await GetStreamVersionAsync(streamId);
+        var updatedAggregate = await _streamManager.AppendEventAsync(streamId, @event, currentVersion);
+        var updatedBusiness = updatedAggregate?.ActiveBusiness;
         
         return updatedBusiness != null ? Ok(updatedBusiness) : StatusCode(500);
     }
@@ -105,8 +113,10 @@ public class BusinessesController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult> DeleteBusiness(Guid id)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Businesses.TryGetValue(id, out var existingBusiness) != true || existingBusiness.IsDeleted)
+        var streamId = $"business-{id}";
+        var businessAggregate = await _streamManager.GetCurrentStateAsync(streamId);
+        
+        if (businessAggregate?.ActiveBusiness == null)
         {
             return NotFound();
         }
@@ -117,15 +127,15 @@ public class BusinessesController : ControllerBase
             Version = 0
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
+        var currentVersion = await GetStreamVersionAsync(streamId);
+        await _streamManager.AppendEventAsync(streamId, @event, currentVersion);
         return NoContent();
     }
 
-    private async Task<long> GetCurrentVersionAsync()
+    private async Task<long> GetStreamVersionAsync(string streamId)
     {
         var eventStore = HttpContext.RequestServices.GetRequiredService<IEventStore>();
-        return await eventStore.GetStreamVersionAsync(StreamId);
+        return await eventStore.GetStreamVersionAsync(streamId);
     }
 }
 

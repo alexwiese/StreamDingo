@@ -12,53 +12,66 @@ namespace StreamDingo.Examples.WebApp.Controllers;
 [Route("api/[controller]")]
 public class RelationshipsController : ControllerBase
 {
-    private readonly IEventStreamManager<DomainSnapshot> _streamManager;
-    private const string StreamId = "domain-stream";
+    private readonly IEventStreamManager<UserAggregate> _userStreamManager;
+    private readonly IEventStreamManager<BusinessAggregate> _businessStreamManager;
 
-    public RelationshipsController(IEventStreamManager<DomainSnapshot> streamManager)
+    public RelationshipsController(
+        IEventStreamManager<UserAggregate> userStreamManager,
+        IEventStreamManager<BusinessAggregate> businessStreamManager)
     {
-        _streamManager = streamManager;
+        _userStreamManager = userStreamManager;
+        _businessStreamManager = businessStreamManager;
     }
 
     /// <summary>
-    /// Gets all relationships.
+    /// Gets all relationships - simplified implementation.
+    /// In a production system, you'd typically have a read model for cross-aggregate queries.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<RelationshipDto>>> GetRelationships()
+    public ActionResult<IEnumerable<RelationshipDto>> GetRelationships()
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        var relationships = snapshot?.ActiveRelationships ?? Enumerable.Empty<Relationship>();
-        
-        var relationshipDtos = relationships.Select(r => new RelationshipDto
-        {
-            Id = r.Id,
-            UserId = r.UserId,
-            BusinessId = r.BusinessId,
-            Type = r.Type,
-            Title = r.Title,
-            Description = r.Description,
-            StartDate = r.StartDate,
-            EndDate = r.EndDate,
-            IsActive = r.IsActive,
-            CreatedAt = r.CreatedAt,
-            UpdatedAt = r.UpdatedAt,
-            UserName = snapshot?.Users.GetValueOrDefault(r.UserId)?.FullName ?? "Unknown",
-            BusinessName = snapshot?.Businesses.GetValueOrDefault(r.BusinessId)?.Name ?? "Unknown"
-        });
-
-        return Ok(relationshipDtos);
+        // Note: This is a simplified implementation for demo purposes.
+        // In a production system, you'd typically maintain a read model 
+        // for cross-aggregate queries like "get all relationships".
+        return Ok(new List<RelationshipDto>());
     }
 
     /// <summary>
     /// Gets a specific relationship by ID.
+    /// Note: Since we don't know which user stream contains the relationship,
+    /// this would typically require a read model in a production system.
     /// </summary>
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<RelationshipDto>> GetRelationship(Guid id)
+    public ActionResult<RelationshipDto> GetRelationship(Guid id)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Relationships.TryGetValue(id, out var relationship) == true && !relationship.IsDeleted)
+        // In a production system, you'd use a read model to find which user
+        // stream contains this relationship, then query that specific stream.
+        return NotFound("Individual relationship lookup requires knowing the user ID. Use /api/users/{userId}/relationships instead.");
+    }
+
+    /// <summary>
+    /// Gets relationships for a specific user using their individual stream.
+    /// </summary>
+    [HttpGet("user/{userId:guid}")]
+    public async Task<ActionResult<IEnumerable<RelationshipDto>>> GetUserRelationships(Guid userId)
+    {
+        var userStreamId = $"user-{userId}";
+        var userAggregate = await _userStreamManager.GetCurrentStateAsync(userStreamId);
+        
+        if (userAggregate?.ActiveUser == null)
         {
-            var relationshipDto = new RelationshipDto
+            return NotFound("User not found.");
+        }
+
+        var relationshipDtos = new List<RelationshipDto>();
+
+        foreach (var relationship in userAggregate.ActiveRelationships)
+        {
+            // Get business name by looking up the business stream
+            var businessStreamId = $"business-{relationship.BusinessId}";
+            var businessAggregate = await _businessStreamManager.GetCurrentStateAsync(businessStreamId);
+            
+            relationshipDtos.Add(new RelationshipDto
             {
                 Id = relationship.Id,
                 UserId = relationship.UserId,
@@ -71,71 +84,25 @@ public class RelationshipsController : ControllerBase
                 IsActive = relationship.IsActive,
                 CreatedAt = relationship.CreatedAt,
                 UpdatedAt = relationship.UpdatedAt,
-                UserName = snapshot.Users.GetValueOrDefault(relationship.UserId)?.FullName ?? "Unknown",
-                BusinessName = snapshot.Businesses.GetValueOrDefault(relationship.BusinessId)?.Name ?? "Unknown"
-            };
-            
-            return Ok(relationshipDto);
+                UserName = userAggregate.ActiveUser.FullName,
+                BusinessName = businessAggregate?.ActiveBusiness?.Name ?? "Unknown"
+            });
         }
-        return NotFound();
-    }
-
-    /// <summary>
-    /// Gets relationships for a specific user.
-    /// </summary>
-    [HttpGet("user/{userId:guid}")]
-    public async Task<ActionResult<IEnumerable<RelationshipDto>>> GetUserRelationships(Guid userId)
-    {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        var relationships = snapshot?.GetUserRelationships(userId) ?? Enumerable.Empty<Relationship>();
-        
-        var relationshipDtos = relationships.Select(r => new RelationshipDto
-        {
-            Id = r.Id,
-            UserId = r.UserId,
-            BusinessId = r.BusinessId,
-            Type = r.Type,
-            Title = r.Title,
-            Description = r.Description,
-            StartDate = r.StartDate,
-            EndDate = r.EndDate,
-            IsActive = r.IsActive,
-            CreatedAt = r.CreatedAt,
-            UpdatedAt = r.UpdatedAt,
-            UserName = snapshot?.Users.GetValueOrDefault(r.UserId)?.FullName ?? "Unknown",
-            BusinessName = snapshot?.Businesses.GetValueOrDefault(r.BusinessId)?.Name ?? "Unknown"
-        });
 
         return Ok(relationshipDtos);
     }
 
     /// <summary>
     /// Gets relationships for a specific business.
+    /// Note: This requires querying multiple user streams, so it's simplified here.
+    /// In production, you'd use a read model for this type of query.
     /// </summary>
     [HttpGet("business/{businessId:guid}")]
-    public async Task<ActionResult<IEnumerable<RelationshipDto>>> GetBusinessRelationships(Guid businessId)
+    public ActionResult<IEnumerable<RelationshipDto>> GetBusinessRelationships(Guid businessId)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        var relationships = snapshot?.GetBusinessRelationships(businessId) ?? Enumerable.Empty<Relationship>();
-        
-        var relationshipDtos = relationships.Select(r => new RelationshipDto
-        {
-            Id = r.Id,
-            UserId = r.UserId,
-            BusinessId = r.BusinessId,
-            Type = r.Type,
-            Title = r.Title,
-            Description = r.Description,
-            StartDate = r.StartDate,
-            EndDate = r.EndDate,
-            IsActive = r.IsActive,
-            CreatedAt = r.CreatedAt,
-            UpdatedAt = r.UpdatedAt,
-            UserName = snapshot?.Users.GetValueOrDefault(r.UserId)?.FullName ?? "Unknown",
-            BusinessName = snapshot?.Businesses.GetValueOrDefault(r.BusinessId)?.Name ?? "Unknown"
-        });
-
-        return Ok(relationshipDtos);
+        // In a production system, you'd maintain a read model that indexes
+        // relationships by business ID, since relationships are stored in user streams.
+        return Ok(new List<RelationshipDto>());
     }
 
     /// <summary>
@@ -144,12 +111,22 @@ public class RelationshipsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<RelationshipDto>> CreateRelationship(CreateRelationshipRequest request)
     {
-        // Validate that user and business exist
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Users.GetValueOrDefault(request.UserId)?.IsDeleted != false ||
-            snapshot?.Businesses.GetValueOrDefault(request.BusinessId)?.IsDeleted != false)
+        // Validate that user exists by checking their stream
+        var userStreamId = $"user-{request.UserId}";
+        var userAggregate = await _userStreamManager.GetCurrentStateAsync(userStreamId);
+        
+        if (userAggregate?.ActiveUser == null)
         {
-            return BadRequest("User or business not found or has been deleted.");
+            return BadRequest("User not found or has been deleted.");
+        }
+
+        // Validate that business exists by checking their stream
+        var businessStreamId = $"business-{request.BusinessId}";
+        var businessAggregate = await _businessStreamManager.GetCurrentStateAsync(businessStreamId);
+        
+        if (businessAggregate?.ActiveBusiness == null)
+        {
+            return BadRequest("Business not found or has been deleted.");
         }
 
         var relationshipId = Guid.NewGuid();
@@ -165,9 +142,10 @@ public class RelationshipsController : ControllerBase
             Version = 0
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
-        var relationship = updatedSnapshot?.Relationships.GetValueOrDefault(relationshipId);
+        // Store the relationship in the user's stream
+        var currentVersion = await GetStreamVersionAsync(userStreamId);
+        var updatedUserAggregate = await _userStreamManager.AppendEventAsync(userStreamId, @event, currentVersion);
+        var relationship = updatedUserAggregate?.Relationships.GetValueOrDefault(relationshipId);
         
         if (relationship != null)
         {
@@ -184,11 +162,11 @@ public class RelationshipsController : ControllerBase
                 IsActive = relationship.IsActive,
                 CreatedAt = relationship.CreatedAt,
                 UpdatedAt = relationship.UpdatedAt,
-                UserName = updatedSnapshot.Users.GetValueOrDefault(relationship.UserId)?.FullName ?? "Unknown",
-                BusinessName = updatedSnapshot.Businesses.GetValueOrDefault(relationship.BusinessId)?.Name ?? "Unknown"
+                UserName = updatedUserAggregate.ActiveUser?.FullName ?? "Unknown",
+                BusinessName = businessAggregate.ActiveBusiness.Name
             };
             
-            return CreatedAtAction(nameof(GetRelationship), new { id = relationshipId }, relationshipDto);
+            return CreatedAtAction(nameof(GetUserRelationships), new { userId = request.UserId }, relationshipDto);
         }
         
         return StatusCode(500);
@@ -197,18 +175,21 @@ public class RelationshipsController : ControllerBase
     /// <summary>
     /// Updates an existing relationship.
     /// </summary>
-    [HttpPut("{id:guid}")]
-    public async Task<ActionResult<RelationshipDto>> UpdateRelationship(Guid id, UpdateRelationshipRequest request)
+    [HttpPut("{userId:guid}/{relationshipId:guid}")]
+    public async Task<ActionResult<RelationshipDto>> UpdateRelationship(Guid userId, Guid relationshipId, UpdateRelationshipRequest request)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Relationships.TryGetValue(id, out var existingRelationship) != true || existingRelationship.IsDeleted)
+        var userStreamId = $"user-{userId}";
+        var userAggregate = await _userStreamManager.GetCurrentStateAsync(userStreamId);
+        
+        if (userAggregate?.Relationships.TryGetValue(relationshipId, out var existingRelationship) != true || 
+            existingRelationship.IsDeleted)
         {
             return NotFound();
         }
 
         var @event = new RelationshipUpdated
         {
-            RelationshipId = id,
+            RelationshipId = relationshipId,
             Type = request.Type,
             Title = request.Title,
             Description = request.Description,
@@ -218,12 +199,16 @@ public class RelationshipsController : ControllerBase
             Version = 0
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
-        var updatedRelationship = updatedSnapshot?.Relationships.GetValueOrDefault(id);
+        var currentVersion = await GetStreamVersionAsync(userStreamId);
+        var updatedUserAggregate = await _userStreamManager.AppendEventAsync(userStreamId, @event, currentVersion);
+        var updatedRelationship = updatedUserAggregate?.Relationships.GetValueOrDefault(relationshipId);
         
         if (updatedRelationship != null)
         {
+            // Get business name
+            var businessStreamId = $"business-{updatedRelationship.BusinessId}";
+            var businessAggregate = await _businessStreamManager.GetCurrentStateAsync(businessStreamId);
+            
             var relationshipDto = new RelationshipDto
             {
                 Id = updatedRelationship.Id,
@@ -237,8 +222,8 @@ public class RelationshipsController : ControllerBase
                 IsActive = updatedRelationship.IsActive,
                 CreatedAt = updatedRelationship.CreatedAt,
                 UpdatedAt = updatedRelationship.UpdatedAt,
-                UserName = updatedSnapshot.Users.GetValueOrDefault(updatedRelationship.UserId)?.FullName ?? "Unknown",
-                BusinessName = updatedSnapshot.Businesses.GetValueOrDefault(updatedRelationship.BusinessId)?.Name ?? "Unknown"
+                UserName = updatedUserAggregate.ActiveUser?.FullName ?? "Unknown",
+                BusinessName = businessAggregate?.ActiveBusiness?.Name ?? "Unknown"
             };
             
             return Ok(relationshipDto);
@@ -250,30 +235,33 @@ public class RelationshipsController : ControllerBase
     /// <summary>
     /// Deletes a relationship (soft delete).
     /// </summary>
-    [HttpDelete("{id:guid}")]
-    public async Task<ActionResult> DeleteRelationship(Guid id)
+    [HttpDelete("{userId:guid}/{relationshipId:guid}")]
+    public async Task<ActionResult> DeleteRelationship(Guid userId, Guid relationshipId)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Relationships.TryGetValue(id, out var existingRelationship) != true || existingRelationship.IsDeleted)
+        var userStreamId = $"user-{userId}";
+        var userAggregate = await _userStreamManager.GetCurrentStateAsync(userStreamId);
+        
+        if (userAggregate?.Relationships.TryGetValue(relationshipId, out var existingRelationship) != true || 
+            existingRelationship.IsDeleted)
         {
             return NotFound();
         }
 
         var @event = new RelationshipDeleted
         {
-            RelationshipId = id,
+            RelationshipId = relationshipId,
             Version = 0
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
+        var currentVersion = await GetStreamVersionAsync(userStreamId);
+        await _userStreamManager.AppendEventAsync(userStreamId, @event, currentVersion);
         return NoContent();
     }
 
-    private async Task<long> GetCurrentVersionAsync()
+    private async Task<long> GetStreamVersionAsync(string streamId)
     {
         var eventStore = HttpContext.RequestServices.GetRequiredService<IEventStore>();
-        return await eventStore.GetStreamVersionAsync(StreamId);
+        return await eventStore.GetStreamVersionAsync(streamId);
     }
 }
 

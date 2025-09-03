@@ -12,34 +12,54 @@ namespace StreamDingo.Examples.WebApp.Controllers;
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
 {
-    private readonly IEventStreamManager<DomainSnapshot> _streamManager;
-    private const string StreamId = "domain-stream";
+    private readonly IEventStreamManager<UserAggregate> _streamManager;
 
-    public UsersController(IEventStreamManager<DomainSnapshot> streamManager)
+    public UsersController(IEventStreamManager<UserAggregate> streamManager)
     {
         _streamManager = streamManager;
     }
 
     /// <summary>
-    /// Gets all users.
+    /// Gets all users - this is a simplified implementation.
+    /// In a real system, you'd typically have a read model or query all user streams.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+    public ActionResult<IEnumerable<User>> GetUsers()
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        return Ok(snapshot?.ActiveUsers ?? Enumerable.Empty<User>());
+        // Note: This is a simplified implementation for demo purposes.
+        // In a production system, you'd typically maintain a read model 
+        // or use a different approach to list all users.
+        return Ok(new List<User>());
     }
 
     /// <summary>
-    /// Gets a specific user by ID.
+    /// Gets a specific user by ID using their individual stream.
     /// </summary>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<User>> GetUser(Guid id)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Users.TryGetValue(id, out var user) == true && !user.IsDeleted)
+        var streamId = $"user-{id}";
+        var userAggregate = await _streamManager.GetCurrentStateAsync(streamId);
+        
+        if (userAggregate?.ActiveUser != null)
         {
-            return Ok(user);
+            return Ok(userAggregate.ActiveUser);
+        }
+        return NotFound();
+    }
+
+    /// <summary>
+    /// Gets relationships for a specific user.
+    /// </summary>
+    [HttpGet("{id:guid}/relationships")]
+    public async Task<ActionResult<IEnumerable<Relationship>>> GetUserRelationships(Guid id)
+    {
+        var streamId = $"user-{id}";
+        var userAggregate = await _streamManager.GetCurrentStateAsync(streamId);
+        
+        if (userAggregate?.ActiveUser != null)
+        {
+            return Ok(userAggregate.ActiveRelationships);
         }
         return NotFound();
     }
@@ -51,6 +71,8 @@ public class UsersController : ControllerBase
     public async Task<ActionResult<User>> CreateUser(CreateUserRequest request)
     {
         var userId = Guid.NewGuid();
+        var streamId = $"user-{userId}";
+        
         var @event = new UserCreated
         {
             UserId = userId,
@@ -61,9 +83,9 @@ public class UsersController : ControllerBase
             Version = 0 // This will be set by the event store
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        var snapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
-        var user = snapshot?.Users.GetValueOrDefault(userId);
+        var currentVersion = await GetStreamVersionAsync(streamId);
+        var userAggregate = await _streamManager.AppendEventAsync(streamId, @event, currentVersion);
+        var user = userAggregate?.ActiveUser;
         
         return user != null ? CreatedAtAction(nameof(GetUser), new { id = userId }, user) : StatusCode(500);
     }
@@ -74,8 +96,10 @@ public class UsersController : ControllerBase
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<User>> UpdateUser(Guid id, UpdateUserRequest request)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Users.TryGetValue(id, out var existingUser) != true || existingUser.IsDeleted)
+        var streamId = $"user-{id}";
+        var userAggregate = await _streamManager.GetCurrentStateAsync(streamId);
+        
+        if (userAggregate?.ActiveUser == null)
         {
             return NotFound();
         }
@@ -90,9 +114,9 @@ public class UsersController : ControllerBase
             Version = 0 // This will be set by the event store
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
-        var updatedUser = updatedSnapshot?.Users.GetValueOrDefault(id);
+        var currentVersion = await GetStreamVersionAsync(streamId);
+        var updatedAggregate = await _streamManager.AppendEventAsync(streamId, @event, currentVersion);
+        var updatedUser = updatedAggregate?.ActiveUser;
         
         return updatedUser != null ? Ok(updatedUser) : StatusCode(500);
     }
@@ -103,8 +127,10 @@ public class UsersController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult> DeleteUser(Guid id)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Users.TryGetValue(id, out var existingUser) != true || existingUser.IsDeleted)
+        var streamId = $"user-{id}";
+        var userAggregate = await _streamManager.GetCurrentStateAsync(streamId);
+        
+        if (userAggregate?.ActiveUser == null)
         {
             return NotFound();
         }
@@ -115,16 +141,16 @@ public class UsersController : ControllerBase
             Version = 0 // This will be set by the event store
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
+        var currentVersion = await GetStreamVersionAsync(streamId);
+        await _streamManager.AppendEventAsync(streamId, @event, currentVersion);
         return NoContent();
     }
 
-    private async Task<long> GetCurrentVersionAsync()
+    private async Task<long> GetStreamVersionAsync(string streamId)
     {
         // Get the current stream version (-1 if stream doesn't exist)
         var eventStore = HttpContext.RequestServices.GetRequiredService<IEventStore>();
-        return await eventStore.GetStreamVersionAsync(StreamId);
+        return await eventStore.GetStreamVersionAsync(streamId);
     }
 }
 
