@@ -25,5 +25,9 @@ BlogRssPath: null
 BlogAtomPath: null
 ArchivePageSize: 0
 
+# Code Analysis for API docs
+ProjectFiles:
+  - ../src/StreamDingo/StreamDingo.csproj
+
 # Input settings - disable front matter parsing for files without it
 ParseYaml: false

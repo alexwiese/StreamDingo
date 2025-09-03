@@ -8,4 +8,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/StreamDingo.Tests/StreamDingo.Tests.csproj" />
   </Folder>
+  <Folder Name="/docs-generator/">
+    <Project Path="docs-generator/DocsGenerator.csproj" />
+  </Folder>
 </Solution>

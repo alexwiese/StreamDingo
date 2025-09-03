@@ -5,7 +5,8 @@ on:
     branches: [ main ]
     paths: 
       - 'docs/**'
-      - 'mkdocs.yml'
+      - 'docs-generator/**'
+      - 'src/StreamDingo/**'
   workflow_dispatch:
 
 permissions:
@@ -24,37 +25,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      - name: Install dependencies
-        run: |
-          pip install mkdocs
-          pip install mkdocs-material
-          pip install mkdocs-mermaid2-plugin
-          pip install mkdocs-git-revision-date-localized-plugin
-          pip install mkdocs-minify-plugin
-          pip install requests
-          pip install beautifulsoup4
-
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
 
-      - name: Build project for API docs
+      - name: Build StreamDingo project for API docs
         run: dotnet build src/StreamDingo/StreamDingo.csproj
 
-      - name: Generate API documentation
-        run: python3 scripts/generate_api_docs.py src/StreamDingo/bin/Debug/net9.0/StreamDingo.xml docs/api/generated
-
-      - name: Build documentation
-        run: mkdocs build --clean --verbose
-
-      - name: Validate documentation links
-        run: python3 scripts/validate_links.py docs/
+      - name: Build documentation with Statiq
+        run: dotnet run --project docs-generator/DocsGenerator.csproj
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -62,7 +42,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./site
+          path: ./docs-generator/output
 
   deploy:
     environment:
