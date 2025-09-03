@@ -195,11 +195,16 @@ jobs:
             """Load benchmark results from JSON files"""
             results = {}
             results_path = Path(results_dir)
-
+            
+            print(f"Loading benchmark results from: {results_path}")
             if not results_path.exists():
+                print(f"Results directory does not exist: {results_path}")
                 return {}
 
-            for json_file in results_path.glob("*.json"):
+            json_files = list(results_path.glob("*.json"))
+            print(f"Found {len(json_files)} JSON files: {[f.name for f in json_files]}")
+
+            for json_file in json_files:
                 try:
                     with open(json_file, 'r') as f:
                         data = json.load(f)
@@ -207,7 +212,13 @@ jobs:
                             for benchmark in data['Benchmarks']:
                                 key = f"{benchmark.get('Type', 'Unknown')}.{benchmark.get('Method', 'Unknown')}"
                                 if benchmark.get('Parameters'):
-                                    params = '_'.join(str(v) for v in benchmark['Parameters'].values())
+                                    # Handle both string and dictionary parameter formats
+                                    params_val = benchmark['Parameters']
+                                    if isinstance(params_val, dict):
+                                        params = '_'.join(str(v) for v in params_val.values())
+                                    else:
+                                        # BenchmarkDotNet exports parameters as string (e.g., "eventCount=100")
+                                        params = str(params_val).replace('=', '_').replace(' ', '_')
                                     key += f"({params})"
 
                                 stats = benchmark.get('Statistics', {})
@@ -219,7 +230,12 @@ jobs:
                                 }
                 except Exception as e:
                     print(f"Error reading {json_file}: {e}")
+                    # Continue processing other files instead of failing completely
+                    continue
 
+            print(f"Successfully loaded {len(results)} benchmark results")
+            for key in results.keys():
+                print(f"  - {key}")
             return results
 
         def format_time(nanoseconds):
