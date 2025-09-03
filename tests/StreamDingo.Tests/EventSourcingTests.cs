@@ -29,8 +29,8 @@ public class CounterIncrementHandler : IEventHandler<CounterSnapshot, CounterInc
     public CounterSnapshot Handle(CounterSnapshot? previousSnapshot, CounterIncrementedEvent @event)
     {
         var current = previousSnapshot ?? new CounterSnapshot();
-        return new CounterSnapshot 
-        { 
+        return new CounterSnapshot
+        {
             Value = current.Value + @event.Amount,
             EventCount = current.EventCount + 1
         };
@@ -45,8 +45,8 @@ public class CounterDecrementHandler : IEventHandler<CounterSnapshot, CounterDec
     public CounterSnapshot Handle(CounterSnapshot? previousSnapshot, CounterDecrementedEvent @event)
     {
         var current = previousSnapshot ?? new CounterSnapshot();
-        return new CounterSnapshot 
-        { 
+        return new CounterSnapshot
+        {
             Value = current.Value - @event.Amount,
             EventCount = current.EventCount + 1
         };
@@ -66,10 +66,10 @@ public class EventSourcingTests
         var snapshotStore = new InMemorySnapshotStore<CounterSnapshot>();
         var hashProvider = new BasicHashProvider();
         var manager = new EventStreamManager<CounterSnapshot>(eventStore, snapshotStore, hashProvider);
-        
+
         manager.RegisterHandler(new CounterIncrementHandler());
-        
-        var streamId = "test-counter";
+
+        string streamId = "test-counter";
         var @event = new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 0, 5);
 
         // Act
@@ -89,11 +89,11 @@ public class EventSourcingTests
         var snapshotStore = new InMemorySnapshotStore<CounterSnapshot>();
         var hashProvider = new BasicHashProvider();
         var manager = new EventStreamManager<CounterSnapshot>(eventStore, snapshotStore, hashProvider);
-        
+
         manager.RegisterHandler(new CounterIncrementHandler());
         manager.RegisterHandler(new CounterDecrementHandler());
-        
-        var streamId = "test-counter";
+
+        string streamId = "test-counter";
 
         // Act
         await manager.AppendEventAsync(streamId, new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 0, 10), -1);
@@ -114,10 +114,10 @@ public class EventSourcingTests
         var snapshotStore = new InMemorySnapshotStore<CounterSnapshot>();
         var hashProvider = new BasicHashProvider();
         var manager = new EventStreamManager<CounterSnapshot>(eventStore, snapshotStore, hashProvider);
-        
+
         manager.RegisterHandler(new CounterIncrementHandler());
-        
-        var streamId = "test-counter";
+
+        string streamId = "test-counter";
 
         // Create some events
         await manager.AppendEventAsync(streamId, new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 0, 5), -1);
@@ -142,8 +142,8 @@ public class EventSourcingTests
         var eventStore = new InMemoryEventStore();
         var @event1 = new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 0, 5);
         var @event2 = new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 1, 3);
-        
-        var streamId = "test-stream";
+
+        string streamId = "test-stream";
 
         // Act - Add first event
         await eventStore.AppendEventAsync(streamId, @event1, -1);
@@ -159,8 +159,8 @@ public class EventSourcingTests
     {
         // Arrange
         var eventStore = new InMemoryEventStore();
-        var streamId = "test-stream";
-        
+        string streamId = "test-stream";
+
         var @event1 = new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 0, 1);
         var @event2 = new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 1, 2);
         var @event3 = new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 2, 3);

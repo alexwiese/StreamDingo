@@ -20,9 +20,11 @@ public class BasicHashProvider : IHashProvider
     public string CalculateHash(object data)
     {
         if (data == null)
+        {
             return ComputeHash("null");
+        }
 
-        var json = JsonSerializer.Serialize(data, _jsonOptions);
+        string json = JsonSerializer.Serialize(data, _jsonOptions);
         return ComputeHash(json);
     }
 
@@ -33,7 +35,7 @@ public class BasicHashProvider : IHashProvider
 
         // TODO: Integrate with alexwiese/hashstamp for proper method body hashing
         // For now, use the type's full name and assembly version as a basic hash
-        var typeInfo = $"{eventHandlerType.FullName}|{eventHandlerType.Assembly.GetName().Version}";
+        string typeInfo = $"{eventHandlerType.FullName}|{eventHandlerType.Assembly.GetName().Version}";
         return ComputeHash(typeInfo);
     }
 
@@ -41,7 +43,7 @@ public class BasicHashProvider : IHashProvider
     public bool VerifyHash(object data, string expectedHash)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(expectedHash);
-        var actualHash = CalculateHash(data);
+        string actualHash = CalculateHash(data);
         return string.Equals(actualHash, expectedHash, StringComparison.Ordinal);
     }
 
@@ -52,8 +54,8 @@ public class BasicHashProvider : IHashProvider
     /// <returns>The hash as a hexadecimal string.</returns>
     private static string ComputeHash(string input)
     {
-        var bytes = Encoding.UTF8.GetBytes(input);
-        var hashBytes = SHA256.HashData(bytes);
+        byte[] bytes = Encoding.UTF8.GetBytes(input);
+        byte[] hashBytes = SHA256.HashData(bytes);
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 }

@@ -6,7 +6,7 @@ namespace StreamDingo;
 /// </summary>
 /// <typeparam name="TSnapshot">The type of snapshot/state being managed.</typeparam>
 /// <typeparam name="TEvent">The type of event being handled.</typeparam>
-public interface IEventHandler<TSnapshot, in TEvent> 
+public interface IEventHandler<TSnapshot, in TEvent>
     where TEvent : IEvent
 {
     /// <summary>
@@ -16,10 +16,10 @@ public interface IEventHandler<TSnapshot, in TEvent>
     /// <param name="previousSnapshot">The previous snapshot state. May be null for the first event.</param>
     /// <param name="event">The event to apply.</param>
     /// <returns>The new snapshot after applying the event.</returns>
-    TSnapshot Handle(TSnapshot? previousSnapshot, TEvent @event);
+    public TSnapshot Handle(TSnapshot? previousSnapshot, TEvent @event);
 
     /// <summary>
     /// Gets the type of event this handler can process.
     /// </summary>
-    Type EventType => typeof(TEvent);
+    public Type EventType => typeof(TEvent);
 }

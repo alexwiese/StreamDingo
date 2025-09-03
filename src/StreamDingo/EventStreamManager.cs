@@ -51,7 +51,7 @@ public class EventStreamManager<TSnapshot> : IEventStreamManager<TSnapshot> wher
     {
         // Start with the latest snapshot if available
         var snapshot = await _snapshotStore.GetLatestSnapshotAsync(streamId, cancellationToken);
-        var startVersion = snapshot?.Version + 1 ?? 0;
+        long startVersion = snapshot?.Version + 1 ?? 0;
         var currentState = snapshot?.Data;
 
         // Apply any events after the snapshot
@@ -67,9 +67,9 @@ public class EventStreamManager<TSnapshot> : IEventStreamManager<TSnapshot> wher
     public async Task<Snapshot<TSnapshot>?> CreateSnapshotAsync(string streamId, long atVersion, CancellationToken cancellationToken = default)
     {
         var state = await ReplayAsync(streamId, 0, cancellationToken);
-        var hash = _hashProvider.CalculateHash(state!);
+        string hash = _hashProvider.CalculateHash(state!);
         var snapshot = new Snapshot<TSnapshot>(state, atVersion, DateTimeOffset.UtcNow, hash);
-        
+
         await _snapshotStore.SaveSnapshotAsync(streamId, snapshot, cancellationToken);
         return snapshot;
     }
@@ -94,8 +94,8 @@ public class EventStreamManager<TSnapshot> : IEventStreamManager<TSnapshot> wher
     private TSnapshot? ApplyEvent(TSnapshot? currentState, IEvent @event)
     {
         var eventType = @event.GetType();
-        
-        if (!_handlers.TryGetValue(eventType, out var handlerObj))
+
+        if (!_handlers.TryGetValue(eventType, out object? handlerObj))
         {
             // If no handler is registered, return the state unchanged
             return currentState;
@@ -104,7 +104,7 @@ public class EventStreamManager<TSnapshot> : IEventStreamManager<TSnapshot> wher
         // Use reflection to call the handler's Handle method
         var handlerType = handlerObj.GetType();
         var handleMethod = handlerType.GetMethod("Handle", new[] { typeof(TSnapshot), eventType });
-        
+
         if (handleMethod == null)
         {
             throw new InvalidOperationException($"Handler {handlerType.Name} does not have a Handle method that accepts {typeof(TSnapshot).Name} and {eventType.Name}");
@@ -112,7 +112,7 @@ public class EventStreamManager<TSnapshot> : IEventStreamManager<TSnapshot> wher
 
         try
         {
-            var result = handleMethod.Invoke(handlerObj, new object?[] { currentState, @event });
+            object? result = handleMethod.Invoke(handlerObj, new object?[] { currentState, @event });
             return (TSnapshot?)result;
         }
         catch (Exception ex)

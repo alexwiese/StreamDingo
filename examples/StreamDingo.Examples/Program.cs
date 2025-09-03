@@ -14,7 +14,7 @@ Console.WriteLine($"✓ StreamDingo core library successfully initialized");
 
 // Simple demonstration
 var testData = new { Message = "StreamDingo is working!", Version = "1.0.0" };
-var hash = hashProvider.CalculateHash(testData);
+string hash = hashProvider.CalculateHash(testData);
 Console.WriteLine($"✓ Hash calculation works: {hash[..16]}...");
 
 Console.WriteLine("\nStreamDingo event sourcing library is ready for use!");

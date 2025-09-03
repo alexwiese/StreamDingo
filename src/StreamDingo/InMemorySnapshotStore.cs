@@ -29,9 +29,11 @@ public class InMemorySnapshotStore<TSnapshot> : ISnapshotStore<TSnapshot> where 
         ArgumentException.ThrowIfNullOrWhiteSpace(streamId);
 
         if (!_snapshots.TryGetValue(streamId, out var streamSnapshots) || streamSnapshots.IsEmpty)
+        {
             return Task.FromResult<Snapshot<TSnapshot>?>(null);
+        }
 
-        var maxVersion = streamSnapshots.Keys.Max();
+        long maxVersion = streamSnapshots.Keys.Max();
         var snapshot = streamSnapshots.TryGetValue(maxVersion, out var result) ? result : null;
 
         return Task.FromResult(snapshot);
@@ -43,14 +45,18 @@ public class InMemorySnapshotStore<TSnapshot> : ISnapshotStore<TSnapshot> where 
         ArgumentException.ThrowIfNullOrWhiteSpace(streamId);
 
         if (!_snapshots.TryGetValue(streamId, out var streamSnapshots) || streamSnapshots.IsEmpty)
+        {
             return Task.FromResult<Snapshot<TSnapshot>?>(null);
+        }
 
         // Find the highest version that is <= maxVersion
         var validVersions = streamSnapshots.Keys.Where(v => v <= maxVersion).ToList();
         if (validVersions.Count == 0)
+        {
             return Task.FromResult<Snapshot<TSnapshot>?>(null);
+        }
 
-        var targetVersion = validVersions.Max();
+        long targetVersion = validVersions.Max();
         var snapshot = streamSnapshots.TryGetValue(targetVersion, out var result) ? result : null;
 
         return Task.FromResult(snapshot);

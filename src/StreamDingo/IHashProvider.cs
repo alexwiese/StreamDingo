@@ -10,7 +10,7 @@ public interface IHashProvider
     /// </summary>
     /// <param name="data">The data to hash.</param>
     /// <returns>A string representation of the hash.</returns>
-    string CalculateHash(object data);
+    public string CalculateHash(object data);
 
     /// <summary>
     /// Calculates a hash of the specified event handler's code.
@@ -18,7 +18,7 @@ public interface IHashProvider
     /// </summary>
     /// <param name="eventHandlerType">The type of the event handler.</param>
     /// <returns>A hash of the event handler's method body.</returns>
-    string CalculateHandlerHash(Type eventHandlerType);
+    public string CalculateHandlerHash(Type eventHandlerType);
 
     /// <summary>
     /// Verifies that the provided data matches the expected hash.
@@ -26,5 +26,5 @@ public interface IHashProvider
     /// <param name="data">The data to verify.</param>
     /// <param name="expectedHash">The expected hash value.</param>
     /// <returns>True if the hash matches; otherwise, false.</returns>
-    bool VerifyHash(object data, string expectedHash);
+    public bool VerifyHash(object data, string expectedHash);
 }

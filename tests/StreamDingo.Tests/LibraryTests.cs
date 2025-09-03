@@ -22,21 +22,21 @@ public class CoreLibraryTests
         var testData = new { Name = "Test", Value = 42 };
 
         // Act
-        var hash = hashProvider.CalculateHash(testData);
+        string hash = hashProvider.CalculateHash(testData);
 
         // Assert
         hash.Should().NotBeNullOrWhiteSpace();
         hash.Length.Should().Be(64); // SHA-256 produces 64 hex characters
     }
 
-    [Fact] 
+    [Fact]
     public async Task InMemoryEventStore_StreamExistsAsync_ReturnsFalseForNonExistentStream()
     {
         // Arrange
         var eventStore = new InMemoryEventStore();
 
         // Act
-        var exists = await eventStore.StreamExistsAsync("non-existent-stream");
+        bool exists = await eventStore.StreamExistsAsync("non-existent-stream");
 
         // Assert
         exists.Should().BeFalse();
@@ -49,7 +49,7 @@ public class CoreLibraryTests
         var eventStore = new InMemoryEventStore();
 
         // Act
-        var version = await eventStore.GetStreamVersionAsync("non-existent-stream");
+        long version = await eventStore.GetStreamVersionAsync("non-existent-stream");
 
         // Assert
         version.Should().Be(-1);

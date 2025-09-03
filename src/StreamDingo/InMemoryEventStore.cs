@@ -18,15 +18,15 @@ public class InMemoryEventStore : IEventStore
         ArgumentNullException.ThrowIfNull(@event);
 
         var stream = _streams.GetOrAdd(streamId, _ => new ConcurrentDictionary<long, IEvent>());
-        var currentVersion = _streamVersions.GetOrAdd(streamId, -1);
+        long currentVersion = _streamVersions.GetOrAdd(streamId, -1);
 
         if (currentVersion != expectedVersion)
         {
             throw new ConcurrencyException(streamId, expectedVersion, currentVersion);
         }
 
-        var newVersion = currentVersion + 1;
-        
+        long newVersion = currentVersion + 1;
+
         // Store the original event, but track the version separately
         stream.TryAdd(newVersion, @event);
         _streamVersions.TryUpdate(streamId, newVersion, currentVersion);
@@ -42,17 +42,19 @@ public class InMemoryEventStore : IEventStore
 
         var eventList = events.ToList();
         if (eventList.Count == 0)
+        {
             return Task.CompletedTask;
+        }
 
         var stream = _streams.GetOrAdd(streamId, _ => new ConcurrentDictionary<long, IEvent>());
-        var currentVersion = _streamVersions.GetOrAdd(streamId, -1);
+        long currentVersion = _streamVersions.GetOrAdd(streamId, -1);
 
         if (currentVersion != expectedVersion)
         {
             throw new ConcurrencyException(streamId, expectedVersion, currentVersion);
         }
 
-        var newVersion = currentVersion;
+        long newVersion = currentVersion;
         foreach (var @event in eventList)
         {
             newVersion++;
@@ -71,20 +73,22 @@ public class InMemoryEventStore : IEventStore
         ArgumentException.ThrowIfNullOrWhiteSpace(streamId);
 
         if (!_streams.TryGetValue(streamId, out var stream))
+        {
             yield break;
+        }
 
-        var currentVersion = _streamVersions.GetOrAdd(streamId, -1);
-        
-        for (var version = Math.Max(0, fromVersion); version <= currentVersion; version++)
+        long currentVersion = _streamVersions.GetOrAdd(streamId, -1);
+
+        for (long version = Math.Max(0, fromVersion); version <= currentVersion; version++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            
+
             if (stream.TryGetValue(version, out var @event))
             {
                 // Return the original event - event handlers should work with the original type
                 yield return @event;
             }
-            
+
             // Allow for cancellation and yielding control
             if (version % 100 == 0)
             {
