@@ -3,12 +3,12 @@ using System.Text;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Order;
+using StreamDingo;
 
 namespace StreamDingo.Benchmarks;
 
 /// <summary>
-/// Benchmarks for hash-based integrity verification operations
-/// These benchmarks focus on the core hashing functionality that StreamDingo will use
+/// Benchmarks for hash-based integrity verification operations using StreamDingo's BasicHashProvider
 /// </summary>
 [Config(typeof(Config))]
 [MemoryDiagnoser]
@@ -21,10 +21,18 @@ public class HashBenchmarks
     private byte[] _mediumData = Array.Empty<byte>();
     private byte[] _largeData = Array.Empty<byte>();
     private readonly SHA256 _sha256 = SHA256.Create();
+    private IHashProvider _hashProvider = null!;
+    private CounterSnapshot _testSnapshot = null!;
 
     [GlobalSetup]
     public void Setup()
     {
+        // Initialize StreamDingo hash provider
+        _hashProvider = new BasicHashProvider();
+        
+        // Create test snapshot
+        _testSnapshot = new CounterSnapshot { Value = 42, EventCount = 100 };
+        
         // Create test data of different sizes
         _smallData = Encoding.UTF8.GetBytes(new string('A', 100));       // 100 bytes
         _mediumData = Encoding.UTF8.GetBytes(new string('B', 10000));    // 10KB
@@ -38,13 +46,23 @@ public class HashBenchmarks
     }
 
     [Benchmark]
+    [BenchmarkCategory("Hash", "StreamDingo", "Snapshot")]
+    public string StreamDingo_HashSnapshot()
+    {
+        return _hashProvider.CalculateHash(_testSnapshot);
+    }
+
+    [Benchmark]
+    [BenchmarkCategory("Hash", "StreamDingo", "EventHandler")]
+    public string StreamDingo_HashEventHandler()
+    {
+        return _hashProvider.CalculateHandlerHash(typeof(CounterIncrementHandler));
+    }
+
+    [Benchmark]
     [BenchmarkCategory("Hash", "SHA256", "Small")]
     public byte[] SHA256_Small()
     {
-        // TODO: Replace with alexwiese/hashstamp integration
-        // var hashProvider = new HashStampProvider();
-        // return hashProvider.CalculateHash(_smallData);
-
         return _sha256.ComputeHash(_smallData);
     }
 
@@ -67,7 +85,25 @@ public class HashBenchmarks
     [Arguments(100)]
     [Arguments(1000)]
     [Arguments(10000)]
-    public bool HashVerificationBatch(int verificationCount)
+    public bool StreamDingo_HashVerificationBatch(int verificationCount)
+    {
+        var expectedHash = _hashProvider.CalculateHash(_testSnapshot);
+        bool allValid = true;
+
+        for (int i = 0; i < verificationCount; i++)
+        {
+            allValid = allValid && _hashProvider.VerifyHash(_testSnapshot, expectedHash);
+        }
+
+        return allValid;
+    }
+
+    [Benchmark]
+    [BenchmarkCategory("Hash", "Legacy")]
+    [Arguments(100)]
+    [Arguments(1000)]
+    [Arguments(10000)]
+    public bool Legacy_HashVerificationBatch(int verificationCount)
     {
         // TODO: Implement when HashStamp integration is ready
         // var hashProvider = new HashStampProvider();
@@ -86,25 +122,50 @@ public class HashBenchmarks
     }
 
     [Benchmark]
-    [BenchmarkCategory("Hash", "EventHandler", "CodeHash")]
-    public string EventHandlerCodeHash()
+    [BenchmarkCategory("Hash", "EventHandler", "StreamDingo")]
+    public string StreamDingo_EventHandlerCodeHash()
+    {
+        return _hashProvider.CalculateHandlerHash(typeof(CounterIncrementHandler));
+    }
+
+    [Benchmark]
+    [BenchmarkCategory("Hash", "EventHandler", "Legacy")]
+    public string Legacy_EventHandlerCodeHash()
     {
         // TODO: Replace with actual event handler code hashing using alexwiese/hashstamp
         // var hashProvider = new HashStampProvider();
         // return hashProvider.CalculateHash(typeof(TestEventHandler));
 
         // Placeholder: simulate hashing event handler code
-        string typeInfo = typeof(TestEventHandler).ToString();
+        string typeInfo = typeof(CounterIncrementHandler).ToString();
         byte[] data = Encoding.UTF8.GetBytes(typeInfo);
         byte[] hash = _sha256.ComputeHash(data);
         return Convert.ToBase64String(hash);
     }
 
     [Benchmark]
-    [BenchmarkCategory("Hash", "Snapshot", "Integrity")]
+    [BenchmarkCategory("Hash", "Snapshot", "StreamDingo")]
     [Arguments(10)]
     [Arguments(100)]
-    public Dictionary<string, string> SnapshotIntegrityCheck(int snapshotCount)
+    public Dictionary<string, string> StreamDingo_SnapshotIntegrityCheck(int snapshotCount)
+    {
+        var results = new Dictionary<string, string>();
+
+        for (int i = 0; i < snapshotCount; i++)
+        {
+            var snapshot = new CounterSnapshot { Value = i * 10, EventCount = i + 1 };
+            string hash = _hashProvider.CalculateHash(snapshot);
+            results[$"stream-{i}"] = hash;
+        }
+
+        return results;
+    }
+
+    [Benchmark]
+    [BenchmarkCategory("Hash", "Snapshot", "Legacy")]
+    [Arguments(10)]
+    [Arguments(100)]
+    public Dictionary<string, string> Legacy_SnapshotIntegrityCheck(int snapshotCount)
     {
         var results = new Dictionary<string, string>();
 
@@ -161,14 +222,4 @@ public class HashBenchmarks
     }
 }
 
-/// <summary>
-/// Placeholder for future event handler implementation
-/// </summary>
-public class TestEventHandler
-{
-    public string Apply(object previousState, object eventData)
-    {
-        // TODO: Implement actual event handler logic
-        return $"Processed: {eventData}";
-    }
-}
+

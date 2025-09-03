@@ -3,12 +3,12 @@ using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Order;
 using BenchmarkDotNet.Toolchains.InProcess.Emit;
+using StreamDingo;
 
 namespace StreamDingo.Benchmarks;
 
 /// <summary>
-/// Benchmarks for core event sourcing operations
-/// These are placeholder benchmarks that will be implemented once the core library is ready
+/// Benchmarks for core event sourcing operations using the StreamDingo library
 /// </summary>
 [Config(typeof(Config))]
 [MemoryDiagnoser]
@@ -17,16 +17,39 @@ namespace StreamDingo.Benchmarks;
 [CategoriesColumn]
 public class EventSourcingBenchmarks
 {
-    private List<object> _events = new();
+    private List<IEvent> _events = new();
+    private IEventStore _eventStore = null!;
+    private ISnapshotStore<CounterSnapshot> _snapshotStore = null!;
+    private IHashProvider _hashProvider = null!;
+    private EventStreamManager<CounterSnapshot> _manager = null!;
 
     [GlobalSetup]
     public void Setup()
     {
+        // Initialize StreamDingo components
+        _eventStore = new InMemoryEventStore();
+        _snapshotStore = new InMemorySnapshotStore<CounterSnapshot>();
+        _hashProvider = new BasicHashProvider();
+        _manager = new EventStreamManager<CounterSnapshot>(_eventStore, _snapshotStore, _hashProvider);
+        
+        // Register event handlers
+        _manager.RegisterHandler(new CounterIncrementHandler());
+        _manager.RegisterHandler(new CounterDecrementHandler());
+
         // Initialize test data
-        _events = new List<object>();
+        _events = new List<IEvent>();
+        var random = new Random(42); // Use seed for consistent benchmarks
         for (int i = 0; i < 1000; i++)
         {
-            _events.Add(new TestEvent($"Event {i}", i));
+            var amount = random.Next(1, 100);
+            if (i % 2 == 0)
+            {
+                _events.Add(new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, i, amount));
+            }
+            else
+            {
+                _events.Add(new CounterDecrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, i, amount));
+            }
         }
     }
 
@@ -35,22 +58,16 @@ public class EventSourcingBenchmarks
     [Arguments(100)]
     [Arguments(1000)]
     [Arguments(10000)]
-    public void AppendEvents(int eventCount)
+    public async Task AppendEvents(int eventCount)
     {
-        // TODO: Implement when StreamDingo EventStore is ready
-        // var eventStore = new StreamDingoEventStore();
-        // var streamId = Guid.NewGuid();
+        var streamId = Guid.NewGuid().ToString();
+        long expectedVersion = -1;
 
-        // for (int i = 0; i < eventCount; i++)
-        // {
-        //     await eventStore.AppendAsync(streamId, _events[i % _events.Count]);
-        // }
-
-        // Placeholder implementation
-        var list = new List<object>();
         for (int i = 0; i < eventCount; i++)
         {
-            list.Add(_events[i % _events.Count]);
+            var @event = _events[i % _events.Count];
+            await _eventStore.AppendEventAsync(streamId, @event, expectedVersion);
+            expectedVersion++;
         }
     }
 
@@ -59,36 +76,28 @@ public class EventSourcingBenchmarks
     [Arguments(100)]
     [Arguments(1000)]
     [Arguments(10000)]
-    public void ReplayEvents(int eventCount)
+    public async Task<CounterSnapshot?> ReplayEvents(int eventCount)
     {
-        // TODO: Implement when StreamDingo replay logic is ready
-        // var eventStore = new StreamDingoEventStore();
-        // var streamId = Guid.NewGuid();
-        // var currentState = await eventStore.ReplayAsync<TestState>(streamId);
-
-        // Placeholder implementation
-        var state = new TestState("Initial", 0);
+        var streamId = Guid.NewGuid().ToString();
+        
+        // First, populate the stream with events
+        long expectedVersion = -1;
         for (int i = 0; i < Math.Min(eventCount, _events.Count); i++)
         {
-            if (_events[i] is TestEvent evt)
-            {
-                state = state with { Name = evt.Name, Value = evt.Value };
-            }
+            await _eventStore.AppendEventAsync(streamId, _events[i], expectedVersion);
+            expectedVersion++;
         }
+
+        // Now replay the events to rebuild state
+        return await _manager.ReplayAsync(streamId);
     }
 
     [Benchmark]
     [BenchmarkCategory("Hash", "Calculation")]
-    public void HashCalculation()
+    public string HashCalculation()
     {
-        // TODO: Implement when HashStamp integration is ready
-        // var hashProvider = new HashStampProvider();
-        // var hash = hashProvider.CalculateHash(typeof(TestEventHandler));
-
-        // Placeholder implementation
-        byte[] data = System.Text.Encoding.UTF8.GetBytes("TestEventHandler");
-        using var sha256 = System.Security.Cryptography.SHA256.Create();
-        byte[] hash = sha256.ComputeHash(data);
+        var testSnapshot = new CounterSnapshot { Value = 42, EventCount = 10 };
+        return _hashProvider.CalculateHash(testSnapshot);
     }
 
     [Benchmark]
@@ -96,39 +105,45 @@ public class EventSourcingBenchmarks
     [Arguments(10)]
     [Arguments(100)]
     [Arguments(1000)]
-    public void CreateSnapshots(int snapshotCount)
+    public async Task<List<Snapshot<CounterSnapshot>>> CreateSnapshots(int snapshotCount)
     {
-        // TODO: Implement when snapshot functionality is ready
-        // var snapshotStore = new StreamDingoSnapshotStore();
-
-        // Placeholder implementation
-        var snapshots = new List<TestState>();
+        var snapshots = new List<Snapshot<CounterSnapshot>>();
+        
         for (int i = 0; i < snapshotCount; i++)
         {
-            snapshots.Add(new TestState($"Snapshot {i}", i));
+            var streamId = $"stream-{i}";
+            
+            // Add some events to the stream first
+            await _eventStore.AppendEventAsync(streamId, 
+                new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 0, i * 10), -1);
+            
+            // Create snapshot
+            var snapshot = await _manager.CreateSnapshotAsync(streamId, 0);
+            if (snapshot != null)
+            {
+                snapshots.Add(snapshot);
+            }
         }
+        
+        return snapshots;
     }
 
     [Benchmark]
     [BenchmarkCategory("Hash", "Verification")]
     [Arguments(100)]
     [Arguments(1000)]
-    public void HashVerification(int verificationCount)
+    public bool HashVerification(int verificationCount)
     {
-        // TODO: Implement when HashStamp integration is ready
-        // var hashProvider = new HashStampProvider();
-        // var originalHash = hashProvider.CalculateHash(typeof(TestEventHandler));
-
-        // Placeholder implementation
-        byte[] data = System.Text.Encoding.UTF8.GetBytes("TestEventHandler");
-        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var testSnapshot = new CounterSnapshot { Value = 42, EventCount = 10 };
+        var expectedHash = _hashProvider.CalculateHash(testSnapshot);
+        bool allValid = true;
 
         for (int i = 0; i < verificationCount; i++)
         {
-            byte[] hash = sha256.ComputeHash(data);
-            // Simulate verification
-            bool isValid = hash.Length == 32;
+            allValid = allValid && _hashProvider.VerifyHash(testSnapshot, expectedHash);
         }
+
+        return allValid;
     }
 
     [Benchmark]
@@ -138,19 +153,26 @@ public class EventSourcingBenchmarks
     public void MemoryAllocationTest(int objectCount)
     {
         // Benchmark memory allocation patterns typical in event sourcing
-        var events = new List<TestEvent>(objectCount);
-        var states = new List<TestState>(objectCount);
+        var events = new List<IEvent>(objectCount);
+        var states = new List<CounterSnapshot>(objectCount);
 
+        var random = new Random(42);
         for (int i = 0; i < objectCount; i++)
         {
-            events.Add(new TestEvent($"Event {i}", i));
-            states.Add(new TestState($"State {i}", i));
+            var amount = random.Next(1, 100);
+            events.Add(new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, i, amount));
+            states.Add(new CounterSnapshot { Value = i * amount, EventCount = i + 1 });
         }
 
-        // Simulate processing
+        // Simulate processing with event handlers
+        var handler = new CounterIncrementHandler();
+        CounterSnapshot? currentState = null;
         foreach (var evt in events)
         {
-            var state = new TestState(evt.Name, evt.Value);
+            if (evt is CounterIncrementedEvent incrementEvent)
+            {
+                currentState = handler.Handle(currentState, incrementEvent);
+            }
         }
     }
 
@@ -160,21 +182,27 @@ public class EventSourcingBenchmarks
     [Arguments(8)]
     public async Task ConcurrentAccess(int threadCount)
     {
-        // TODO: Implement when thread-safe event store is ready
-        // var eventStore = new ThreadSafeEventStore();
-
-        // Placeholder implementation
         var tasks = new Task[threadCount];
-        var sharedList = new System.Collections.Concurrent.ConcurrentBag<TestEvent>();
+        var baseStreamId = Guid.NewGuid().ToString();
 
         for (int i = 0; i < threadCount; i++)
         {
             int threadId = i;
-            tasks[i] = Task.Run(() =>
+            tasks[i] = Task.Run(async () =>
             {
+                var streamId = $"{baseStreamId}-thread{threadId}";
+                long expectedVersion = -1;
+                
                 for (int j = 0; j < 100; j++)
                 {
-                    sharedList.Add(new TestEvent($"Thread{threadId}-Event{j}", j));
+                    var @event = new CounterIncrementedEvent(
+                        Guid.NewGuid(), 
+                        DateTimeOffset.UtcNow, 
+                        expectedVersion + 1, 
+                        j);
+                    
+                    await _eventStore.AppendEventAsync(streamId, @event, expectedVersion);
+                    expectedVersion++;
                 }
             });
         }
@@ -188,20 +216,20 @@ public class EventSourcingBenchmarks
     [Arguments(1000)]
     public void SerializationBenchmark(int eventCount)
     {
-        // TODO: Implement when event serialization is ready
-        // var serializer = new StreamDingoSerializer();
-
-        // Placeholder implementation using System.Text.Json
-        var events = new List<TestEvent>();
+        var events = new List<IEvent>();
+        var random = new Random(42);
+        
         for (int i = 0; i < eventCount; i++)
         {
-            events.Add(new TestEvent($"Event {i}", i));
+            var amount = random.Next(1, 100);
+            events.Add(new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, i, amount));
         }
 
+        // Test serialization performance used by hash provider
         foreach (var evt in events)
         {
             string json = System.Text.Json.JsonSerializer.Serialize(evt);
-            var deserialized = System.Text.Json.JsonSerializer.Deserialize<TestEvent>(json);
+            var deserialized = System.Text.Json.JsonSerializer.Deserialize<CounterIncrementedEvent>(json);
         }
     }
 
@@ -209,32 +237,35 @@ public class EventSourcingBenchmarks
     [BenchmarkCategory("Snapshot", "Validation")]
     [Arguments(10)]
     [Arguments(100)]
-    public void ValidateSnapshots(int snapshotCount)
+    public async Task<bool> ValidateSnapshots(int snapshotCount)
     {
-        // TODO: Implement when snapshot validation is ready
-        // var snapshotStore = new StreamDingoSnapshotStore();
-
-        // Placeholder implementation
-        var snapshots = new List<(TestState state, string hash)>();
-        using var sha256 = System.Security.Cryptography.SHA256.Create();
-
+        var snapshots = new List<Snapshot<CounterSnapshot>>();
+        
+        // Create snapshots with real StreamDingo functionality
         for (int i = 0; i < snapshotCount; i++)
         {
-            var state = new TestState($"Snapshot {i}", i);
-            string json = System.Text.Json.JsonSerializer.Serialize(state);
-            byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
-            string hash = Convert.ToBase64String(sha256.ComputeHash(data));
-            snapshots.Add((state, hash));
+            var streamId = $"validation-stream-{i}";
+            await _eventStore.AppendEventAsync(streamId, 
+                new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 0, i * 10), -1);
+            
+            var snapshot = await _manager.CreateSnapshotAsync(streamId, 0);
+            if (snapshot != null)
+            {
+                snapshots.Add(snapshot);
+            }
         }
 
-        // Simulate validation
-        foreach (var (state, originalHash) in snapshots)
+        // Validate all snapshots
+        bool allValid = true;
+        foreach (var snapshot in snapshots)
         {
-            string json = System.Text.Json.JsonSerializer.Serialize(state);
-            byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
-            string currentHash = Convert.ToBase64String(sha256.ComputeHash(data));
-            bool isValid = originalHash == currentHash;
+            if (snapshot.Data != null)
+            {
+                allValid = allValid && _hashProvider.VerifyHash(snapshot.Data, snapshot.Hash);
+            }
         }
+        
+        return allValid;
     }
 }
 
@@ -272,6 +303,54 @@ public class Config : ManualConfig
     }
 }
 
-// Test data structures (placeholders)
-public record TestEvent(string Name, int Value);
-public record TestState(string Name, int Value);
+// Test data structures - using the same models as the unit tests
+/// <summary>
+/// Test event for incrementing a counter.
+/// </summary>
+public record CounterIncrementedEvent(Guid Id, DateTimeOffset Timestamp, long Version, int Amount) : IEvent;
+
+/// <summary>
+/// Test event for decrementing a counter.
+/// </summary>
+public record CounterDecrementedEvent(Guid Id, DateTimeOffset Timestamp, long Version, int Amount) : IEvent;
+
+/// <summary>
+/// Test snapshot representing a counter state.
+/// </summary>
+public class CounterSnapshot
+{
+    public int Value { get; set; }
+    public int EventCount { get; set; }
+}
+
+/// <summary>
+/// Event handler for counter increment events.
+/// </summary>
+public class CounterIncrementHandler : IEventHandler<CounterSnapshot, CounterIncrementedEvent>
+{
+    public CounterSnapshot Handle(CounterSnapshot? previousSnapshot, CounterIncrementedEvent @event)
+    {
+        var current = previousSnapshot ?? new CounterSnapshot();
+        return new CounterSnapshot
+        {
+            Value = current.Value + @event.Amount,
+            EventCount = current.EventCount + 1
+        };
+    }
+}
+
+/// <summary>
+/// Event handler for counter decrement events.
+/// </summary>
+public class CounterDecrementHandler : IEventHandler<CounterSnapshot, CounterDecrementedEvent>
+{
+    public CounterSnapshot Handle(CounterSnapshot? previousSnapshot, CounterDecrementedEvent @event)
+    {
+        var current = previousSnapshot ?? new CounterSnapshot();
+        return new CounterSnapshot
+        {
+            Value = current.Value - @event.Amount,
+            EventCount = current.EventCount + 1
+        };
+    }
+}
