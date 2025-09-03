@@ -66,6 +66,7 @@ public class EventStreamManager<TSnapshot> : IEventStreamManager<TSnapshot> wher
     /// <inheritdoc />
     public async Task<Snapshot<TSnapshot>?> CreateSnapshotAsync(string streamId, long atVersion, CancellationToken cancellationToken = default)
     {
+        // test comment
         var state = await ReplayAsync(streamId, 0, cancellationToken);
         string hash = _hashProvider.CalculateHash(state!);
         var snapshot = new Snapshot<TSnapshot>(state, atVersion, DateTimeOffset.UtcNow, hash);
