@@ -1,0 +1,41 @@
+version: 2
+updates:
+  - package-ecosystem: "nuget"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    assignees:
+      - "alexwiese"
+    reviewers:
+      - "alexwiese"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+    groups:
+      microsoft-packages:
+        patterns:
+          - "Microsoft.*"
+          - "System.*"
+      testing-packages:
+        patterns:
+          - "xunit*"
+          - "*Test*"
+          - "Moq*"
+          - "FluentAssertions*"
+      benchmarking-packages:
+        patterns:
+          - "BenchmarkDotNet*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    assignees:
+      - "alexwiese"
+    reviewers:
+      - "alexwiese"
+    commit-message:
+      prefix: "ci"
+      include: "scope"

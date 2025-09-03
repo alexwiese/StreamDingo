@@ -9,11 +9,15 @@
 </p>
 
 <p align="center">
-  <!-- Build Status - uncomment when CI/CD is set up
   <a href="https://github.com/alexwiese/StreamDingo/actions/workflows/ci.yml">
     <img src="https://github.com/alexwiese/StreamDingo/actions/workflows/ci.yml/badge.svg" alt="Build Status">
   </a>
-  -->
+  <a href="https://codecov.io/gh/alexwiese/StreamDingo">
+    <img src="https://codecov.io/gh/alexwiese/StreamDingo/branch/main/graph/badge.svg" alt="Code Coverage">
+  </a>
+  <a href="https://github.com/alexwiese/StreamDingo/security/advisories">
+    <img src="https://img.shields.io/github/security-advisories/gh/alexwiese/StreamDingo" alt="Security Advisories">
+  </a>
   <a href="https://dotnet.microsoft.com/download/dotnet">
     <img src="https://img.shields.io/badge/.NET-9.0%2B-512BD4?logo=.net" alt=".NET Version">
   </a>
@@ -28,7 +32,7 @@
     <img src="https://img.shields.io/nuget/dt/StreamDingo.svg" alt="NuGet Downloads">
   </a>
   -->
-</p>
+</p></p>
 
 ## ✨ Features
 
