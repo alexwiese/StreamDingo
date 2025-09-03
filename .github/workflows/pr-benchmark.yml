@@ -430,31 +430,4 @@ jobs:
               body: '🚀 **Performance Improvement**: This PR includes performance improvements! Check out the benchmark results above.'
             });
           }
-          
-    - name: Set benchmark check status
-      if: steps.compare.outputs.report_generated == 'true'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const fs = require('fs');
-          const report = fs.readFileSync('benchmark_report.md', 'utf8');
-          
-          let state = 'success';
-          let description = 'No significant performance changes detected';
-          
-          if (report.includes('⚠️ Performance decreased')) {
-            state = 'failure';
-            description = 'Performance regressions detected';
-          } else if (report.includes('✅ Performance improved')) {
-            state = 'success';
-            description = 'Performance improvements detected';
-          }
-          
-          await github.rest.repos.createCommitStatus({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            sha: '${{ github.event.pull_request.head.sha || github.sha }}',
-            state: state,
-            description: description,
-            context: 'benchmark/performance'
-          });
+
