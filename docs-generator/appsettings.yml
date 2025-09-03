@@ -1,0 +1,33 @@
+SiteName: StreamDingo Documentation
+SiteDescription: A high-performance .NET library for event sourcing with hash-based integrity verification
+SiteAuthor: Alex Wiese
+Host: alexwiese.github.io
+BasePath: /StreamDingo
+LinkRoot: /StreamDingo
+
+# GitHub integration
+GitHub: alexwiese/StreamDingo
+GitHubOwner: alexwiese
+GitHubName: StreamDingo
+
+# Theme settings
+Theme: CleanBlog
+EditLink: https://github.com/alexwiese/StreamDingo/edit/main/{Document.Source.Value}
+
+# Search
+SearchProvider: Lunr
+
+# Code highlighting
+HighlightJS: true
+
+# Disable blog functionality
+BlogRssPath: null
+BlogAtomPath: null
+ArchivePageSize: 0
+
+# Code Analysis for API docs
+ProjectFiles:
+  - ../src/StreamDingo/StreamDingo.csproj
+
+# Input settings - disable front matter parsing for files without it
+ParseYaml: false
