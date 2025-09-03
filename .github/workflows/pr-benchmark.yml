@@ -10,6 +10,17 @@ on:
       - 'tests/**'
       - '*.csproj'
       - '*.sln*'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to benchmark (leave empty to use current branch)'
+        required: false
+        type: string
+      benchmark_filter:
+        description: 'Benchmark filter (e.g., "*AppendEvents*")'
+        required: false
+        default: '*'
+        type: string
 
 permissions:
   contents: read
@@ -44,8 +55,9 @@ jobs:
       run: |
         cd benchmarks/StreamDingo.Benchmarks
         
-        # Run benchmarks with very short job for CI speed
-        timeout 300 dotnet run --configuration Release -- --job VeryShortRun --exporters json --filter "*" --memory || {
+        # Run benchmarks with short job for CI speed
+        BENCHMARK_FILTER="${{ github.event.inputs.benchmark_filter || '*' }}"
+        timeout 300 dotnet run --configuration Release -- --job short --exporters json --filter "$BENCHMARK_FILTER" --memory || {
           echo "Benchmark run timed out or failed, but continuing with available results"
           exit 0
         }
@@ -91,8 +103,9 @@ jobs:
       run: |
         cd main-branch/benchmarks/StreamDingo.Benchmarks
         
-        # Run benchmarks with very short job for CI speed  
-        timeout 300 dotnet run --configuration Release -- --job VeryShortRun --exporters json --filter "*" --memory || {
+        # Run benchmarks with short job for CI speed  
+        BENCHMARK_FILTER="${{ github.event.inputs.benchmark_filter || '*' }}"
+        timeout 300 dotnet run --configuration Release -- --job short --exporters json --filter "$BENCHMARK_FILTER" --memory || {
           echo "Benchmark run timed out or failed, but continuing with available results"
           exit 0
         }
@@ -213,6 +226,12 @@ jobs:
                 report.append("No common benchmarks found between main and PR branches.")
                 return "\n".join(report)
             
+            # Calculate overall performance summary
+            performance_improvements = 0
+            performance_regressions = 0
+            memory_improvements = 0
+            memory_regressions = 0
+            
             # Performance changes table
             report.append("| Benchmark | Main | PR | Change | Memory Main | Memory PR | Memory Change |")
             report.append("|-----------|------|----|---------|-----------|---------|-----------   |")
@@ -230,6 +249,17 @@ jobs:
                 main_memory = main_stat['allocated']
                 pr_memory = pr_stat['allocated']
                 memory_change = calculate_change_percentage(main_memory, pr_memory)
+                
+                # Track overall trends
+                if time_change > 5:
+                    performance_regressions += 1
+                elif time_change < -5:
+                    performance_improvements += 1
+                
+                if memory_change > 5:
+                    memory_regressions += 1
+                elif memory_change < -5:
+                    memory_improvements += 1
                 
                 # Format time change
                 if time_change == float('inf'):
@@ -255,6 +285,37 @@ jobs:
                 if abs(time_change) > 10 or abs(memory_change) > 10:
                     change_type = "regression" if time_change > 10 or memory_change > 10 else "improvement"
                     significant_changes.append(f"- **{benchmark}**: {change_type}")
+            
+            # Add performance summary
+            report.append("")
+            report.append("### 📈 Performance Summary")
+            
+            if performance_improvements > 0 or performance_regressions > 0:
+                report.append(f"- **Performance**: {performance_improvements} improvements, {performance_regressions} regressions")
+            if memory_improvements > 0 or memory_regressions > 0:
+                report.append(f"- **Memory**: {memory_improvements} improvements, {memory_regressions} regressions")
+            
+            # Visual performance indicator
+            if performance_regressions > performance_improvements:
+                report.append("- **Overall Impact**: ⚠️ Performance decreased")
+            elif performance_improvements > performance_regressions:
+                report.append("- **Overall Impact**: ✅ Performance improved")
+            else:
+                report.append("- **Overall Impact**: ➡️ No significant performance change")
+            
+            # Add ASCII chart for visual representation
+            if len(common_benchmarks) > 0:
+                report.append("")
+                report.append("### 📊 Performance Change Distribution")
+                report.append("```")
+                report.append("Performance Changes:")
+                improvements_bar = "🟢" * min(performance_improvements, 20)
+                regressions_bar = "🔴" * min(performance_regressions, 20)
+                neutral_bar = "⚪" * min(len(common_benchmarks) - performance_improvements - performance_regressions, 20)
+                report.append(f"Improvements: {improvements_bar} ({performance_improvements})")
+                report.append(f"Regressions:  {regressions_bar} ({performance_regressions})")
+                report.append(f"Neutral:      {neutral_bar} ({len(common_benchmarks) - performance_improvements - performance_regressions})")
+                report.append("```")
             
             if significant_changes:
                 report.append("")
@@ -369,3 +430,31 @@ jobs:
               body: '🚀 **Performance Improvement**: This PR includes performance improvements! Check out the benchmark results above.'
             });
           }
+          
+    - name: Set benchmark check status
+      if: steps.compare.outputs.report_generated == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('benchmark_report.md', 'utf8');
+          
+          let state = 'success';
+          let description = 'No significant performance changes detected';
+          
+          if (report.includes('⚠️ Performance decreased')) {
+            state = 'failure';
+            description = 'Performance regressions detected';
+          } else if (report.includes('✅ Performance improved')) {
+            state = 'success';
+            description = 'Performance improvements detected';
+          }
+          
+          await github.rest.repos.createCommitStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            sha: '${{ github.event.pull_request.head.sha || github.sha }}',
+            state: state,
+            description: description,
+            context: 'benchmark/performance'
+          });
