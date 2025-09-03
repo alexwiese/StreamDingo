@@ -59,10 +59,11 @@ public class BusinessesController : ControllerBase
             Industry = request.Industry,
             Address = request.Address,
             Website = request.Website,
-            Version = await GetNextVersionAsync()
+            Version = 0
         };
 
-        var snapshot = await _streamManager.AppendEventAsync(StreamId, @event, @event.Version - 1);
+        var currentVersion = await GetCurrentVersionAsync();
+        var snapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
         var business = snapshot?.Businesses.GetValueOrDefault(businessId);
         
         return business != null ? CreatedAtAction(nameof(GetBusiness), new { id = businessId }, business) : StatusCode(500);
@@ -88,10 +89,11 @@ public class BusinessesController : ControllerBase
             Industry = request.Industry,
             Address = request.Address,
             Website = request.Website,
-            Version = await GetNextVersionAsync()
+            Version = 0
         };
 
-        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, @event.Version - 1);
+        var currentVersion = await GetCurrentVersionAsync();
+        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
         var updatedBusiness = updatedSnapshot?.Businesses.GetValueOrDefault(id);
         
         return updatedBusiness != null ? Ok(updatedBusiness) : StatusCode(500);
@@ -112,17 +114,18 @@ public class BusinessesController : ControllerBase
         var @event = new BusinessDeleted
         {
             BusinessId = id,
-            Version = await GetNextVersionAsync()
+            Version = 0
         };
 
-        await _streamManager.AppendEventAsync(StreamId, @event, @event.Version - 1);
+        var currentVersion = await GetCurrentVersionAsync();
+        await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
         return NoContent();
     }
 
-    private async Task<long> GetNextVersionAsync()
+    private async Task<long> GetCurrentVersionAsync()
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        return (snapshot?.Users.Count + snapshot?.Businesses.Count + snapshot?.Relationships.Count + 1) ?? 1;
+        var eventStore = HttpContext.RequestServices.GetRequiredService<IEventStore>();
+        return await eventStore.GetStreamVersionAsync(StreamId);
     }
 }
 

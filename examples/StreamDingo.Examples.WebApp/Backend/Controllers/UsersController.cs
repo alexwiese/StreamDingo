@@ -58,10 +58,11 @@ public class UsersController : ControllerBase
             LastName = request.LastName,
             Email = request.Email,
             PhoneNumber = request.PhoneNumber,
-            Version = await GetNextVersionAsync()
+            Version = 0 // This will be set by the event store
         };
 
-        var snapshot = await _streamManager.AppendEventAsync(StreamId, @event, @event.Version - 1);
+        var currentVersion = await GetCurrentVersionAsync();
+        var snapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
         var user = snapshot?.Users.GetValueOrDefault(userId);
         
         return user != null ? CreatedAtAction(nameof(GetUser), new { id = userId }, user) : StatusCode(500);
@@ -86,10 +87,11 @@ public class UsersController : ControllerBase
             LastName = request.LastName,
             Email = request.Email,
             PhoneNumber = request.PhoneNumber,
-            Version = await GetNextVersionAsync()
+            Version = 0 // This will be set by the event store
         };
 
-        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, @event.Version - 1);
+        var currentVersion = await GetCurrentVersionAsync();
+        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
         var updatedUser = updatedSnapshot?.Users.GetValueOrDefault(id);
         
         return updatedUser != null ? Ok(updatedUser) : StatusCode(500);
@@ -110,18 +112,19 @@ public class UsersController : ControllerBase
         var @event = new UserDeleted
         {
             UserId = id,
-            Version = await GetNextVersionAsync()
+            Version = 0 // This will be set by the event store
         };
 
-        await _streamManager.AppendEventAsync(StreamId, @event, @event.Version - 1);
+        var currentVersion = await GetCurrentVersionAsync();
+        await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
         return NoContent();
     }
 
-    private async Task<long> GetNextVersionAsync()
+    private async Task<long> GetCurrentVersionAsync()
     {
-        // Simple version incrementing - in a real app you'd want more sophisticated versioning
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        return (snapshot?.Users.Count + snapshot?.Businesses.Count + snapshot?.Relationships.Count + 1) ?? 1;
+        // Get the current stream version (-1 if stream doesn't exist)
+        var eventStore = HttpContext.RequestServices.GetRequiredService<IEventStore>();
+        return await eventStore.GetStreamVersionAsync(StreamId);
     }
 }
 

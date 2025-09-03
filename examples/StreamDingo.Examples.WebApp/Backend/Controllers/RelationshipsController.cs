@@ -162,10 +162,11 @@ public class RelationshipsController : ControllerBase
             Title = request.Title,
             Description = request.Description,
             StartDate = request.StartDate,
-            Version = await GetNextVersionAsync()
+            Version = 0
         };
 
-        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, @event.Version - 1);
+        var currentVersion = await GetCurrentVersionAsync();
+        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
         var relationship = updatedSnapshot?.Relationships.GetValueOrDefault(relationshipId);
         
         if (relationship != null)
@@ -214,10 +215,11 @@ public class RelationshipsController : ControllerBase
             StartDate = request.StartDate,
             EndDate = request.EndDate,
             IsActive = request.IsActive,
-            Version = await GetNextVersionAsync()
+            Version = 0
         };
 
-        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, @event.Version - 1);
+        var currentVersion = await GetCurrentVersionAsync();
+        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
         var updatedRelationship = updatedSnapshot?.Relationships.GetValueOrDefault(id);
         
         if (updatedRelationship != null)
@@ -260,17 +262,18 @@ public class RelationshipsController : ControllerBase
         var @event = new RelationshipDeleted
         {
             RelationshipId = id,
-            Version = await GetNextVersionAsync()
+            Version = 0
         };
 
-        await _streamManager.AppendEventAsync(StreamId, @event, @event.Version - 1);
+        var currentVersion = await GetCurrentVersionAsync();
+        await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
         return NoContent();
     }
 
-    private async Task<long> GetNextVersionAsync()
+    private async Task<long> GetCurrentVersionAsync()
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        return (snapshot?.Users.Count + snapshot?.Businesses.Count + snapshot?.Relationships.Count + 1) ?? 1;
+        var eventStore = HttpContext.RequestServices.GetRequiredService<IEventStore>();
+        return await eventStore.GetStreamVersionAsync(StreamId);
     }
 }
 

@@ -35,7 +35,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseHttpsRedirection();
+// Comment out HTTPS redirection for demo purposes to avoid SSL certificate issues
+// app.UseHttpsRedirection();
 app.UseCors("AllowReactApp");
 app.UseRouting();
 app.MapControllers();
