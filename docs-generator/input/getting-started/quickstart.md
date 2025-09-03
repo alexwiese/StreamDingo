@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: quickstart
+---
 # Quick Start Guide
 
 Get up and running with StreamDingo in minutes!
@@ -75,6 +79,6 @@ Console.WriteLine($"User: {currentState.Name}, Email: {currentState.Email}");
 
 ## Next Steps
 
-- Learn about [Basic Concepts](concepts.md)
-- Explore [Event Sourcing Patterns](../guide/event-sourcing.md)
-- Check out [Performance Guidelines](../advanced/performance.md)
+- Learn about [Basic Concepts](concepts.html)
+- Explore [Event Sourcing Patterns](../guide/event-sourcing.html)
+- Check out [Performance Guidelines](../advanced/performance.html)

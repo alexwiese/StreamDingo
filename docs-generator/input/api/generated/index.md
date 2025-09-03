@@ -4,5 +4,5 @@ This documentation is automatically generated from XML documentation comments in
 
 ## Classes
 
-- [StreamDingo](streamdingo.md)
-- [Library](library.md)
+- [StreamDingo](streamdingo.html)
+- [Library](library.html)

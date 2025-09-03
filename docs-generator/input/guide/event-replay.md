@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: event-replay
+---
 # Event Replay
 
 Event replay is the process of reconstructing aggregate state by reapplying stored events. StreamDingo provides intelligent replay strategies optimized for performance and integrity.
@@ -101,5 +105,5 @@ public async Task<Dictionary<string, TAggregate>> ReplayMultipleStreamsAsync<TAg
 
 ## Next Steps
 
-- Learn about [Storage Providers](storage-providers.md)
-- Explore [Performance](../advanced/performance.md) optimization
+- Learn about [Storage Providers](storage-providers.html)
+- Explore [Performance](../advanced/performance.html) optimization

@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: custom-providers
+---
 # Custom Storage Providers
 
 Learn how to implement custom storage providers for StreamDingo.

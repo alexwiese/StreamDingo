@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: performance
+---
 # Performance
 
 StreamDingo is designed for high-performance event sourcing scenarios with careful attention to memory allocations and throughput.
@@ -59,4 +63,4 @@ StreamDingo includes automated performance regression detection in CI/CD. Each p
 3. Reports performance changes in the PR description
 4. Flags significant regressions for review
 
-See [Benchmarks](benchmarks.md) for more details on the benchmark infrastructure.
+See [Benchmarks](benchmarks.html) for more details on the benchmark infrastructure.

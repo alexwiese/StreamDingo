@@ -10,24 +10,14 @@ GitHub: alexwiese/StreamDingo
 GitHubOwner: alexwiese
 GitHubName: StreamDingo
 
-# Theme settings
-Theme: CleanBlog
-EditLink: https://github.com/alexwiese/StreamDingo/edit/main/{Document.Source.Value}
+# Input/Output directories
+InputFiles: ["**/*.{html,cshtml,md}"]
+OutputPath: output
 
-# Search
-SearchProvider: Lunr
+# Rendering settings
+ApplyDirectoryMetadata: true
+ProcessIncludes: true
+ProcessShortcodes: true
 
-# Code highlighting
-HighlightJS: true
-
-# Disable blog functionality
-BlogRssPath: null
-BlogAtomPath: null
-ArchivePageSize: 0
-
-# Code Analysis for API docs
-ProjectFiles:
-  - ../src/StreamDingo/StreamDingo.csproj
-
-# Input settings - disable front matter parsing for files without it
-ParseYaml: false
+# Enable front matter parsing
+ParseMarkdownFrontMatter: true

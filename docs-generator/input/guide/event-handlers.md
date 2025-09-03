@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: event-handlers
+---
 # Event Handlers
 
 Event handlers are the core building blocks of StreamDingo. They are pure functions that transform aggregate state by applying events.
@@ -438,7 +442,7 @@ public static UserAggregate Handle(UserAggregate? state, UserCreated @event)
 
 ## Next Steps
 
-- Learn about [Snapshots](snapshots.md) and their relationship to handlers
-- Understand [Hash Integrity](hash-integrity.md) verification
-- Explore [Event Replay](event-replay.md) strategies
-- See [Storage Providers](storage-providers.md) for persistence options
+- Learn about [Snapshots](snapshots.html) and their relationship to handlers
+- Understand [Hash Integrity](hash-integrity.html) verification
+- Explore [Event Replay](event-replay.html) strategies
+- See [Storage Providers](storage-providers.html) for persistence options

@@ -1,4 +1,8 @@
 ---
+Layout: _Layout
+Title: technical-specification
+---
+---
 ---
 # StreamDingo - Technical Specification
 

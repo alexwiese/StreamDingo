@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: guidelines
+---
 # Contribution Guidelines
 
 Thank you for your interest in contributing to StreamDingo!

@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: concepts
+---
 # Basic Concepts
 
 Understanding the core concepts of StreamDingo will help you build robust event-sourced applications.
@@ -144,6 +148,6 @@ public static OrderSagaState Handle(OrderSagaState? state, OrderPlaced @event)
 
 ## Next Steps
 
-- Learn about [Event Handlers](../guide/event-handlers.md) in detail
-- Understand [Snapshot Management](../guide/snapshots.md)
-- Explore [Hash Integrity Verification](../guide/hash-integrity.md)
+- Learn about [Event Handlers](../guide/event-handlers.html) in detail
+- Understand [Snapshot Management](../guide/snapshots.html)
+- Explore [Hash Integrity Verification](../guide/hash-integrity.html)

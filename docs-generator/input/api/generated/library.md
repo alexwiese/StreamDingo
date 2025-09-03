@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: library
+---
 # Library
 
 **Namespace:** `StreamDingo`

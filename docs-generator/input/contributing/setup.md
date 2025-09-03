@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: setup
+---
 # Development Setup
 
 Set up your development environment for contributing to StreamDingo.

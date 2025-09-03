@@ -1,7 +1,7 @@
 using Statiq.App;
-using Statiq.Docs;
+using Statiq.Web;
 
 return await Bootstrapper
     .Factory
-    .CreateDocs(args)
+    .CreateWeb(args)
     .RunAsync();

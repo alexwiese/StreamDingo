@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: benchmarks
+---
 # Benchmarks
 
 StreamDingo uses [BenchmarkDotNet](https://benchmarkdotnet.org/) to measure and track performance characteristics across different scenarios.

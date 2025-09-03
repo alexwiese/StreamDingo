@@ -1,3 +1,7 @@
+---
+Layout: _Layout
+Title: event-sourcing
+---
 # Event Sourcing with StreamDingo
 
 Event sourcing is a powerful architectural pattern that stores data as a sequence of events rather than the current state. StreamDingo makes event sourcing accessible and efficient in .NET applications.
@@ -302,7 +306,7 @@ public record OrderPlaced(string orderId, string productId, int quantity, bool i
 
 ## Next Steps
 
-- Learn about [Event Handlers](event-handlers.md) in detail
-- Understand [Snapshot Management](snapshots.md)
-- Explore [Hash Integrity](hash-integrity.md) verification
-- See [Event Replay](event-replay.md) strategies
+- Learn about [Event Handlers](event-handlers.html) in detail
+- Understand [Snapshot Management](snapshots.html)
+- Explore [Hash Integrity](hash-integrity.html) verification
+- See [Event Replay](event-replay.html) strategies
