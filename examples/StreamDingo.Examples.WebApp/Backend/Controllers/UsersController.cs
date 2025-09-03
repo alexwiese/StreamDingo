@@ -6,51 +6,78 @@ using StreamDingo.Examples.WebApp.Models;
 namespace StreamDingo.Examples.WebApp.Controllers;
 
 /// <summary>
-/// API controller for managing users.
+/// API controller for managing users with aggregate-based event sourcing.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
 public class UsersController : ControllerBase
 {
-    private readonly IEventStreamManager<DomainSnapshot> _streamManager;
-    private const string StreamId = "domain-stream";
+    private readonly IEventStreamManager<UserAggregate> _userStreamManager;
+    private readonly IEventStreamManager<DomainSnapshot> _domainStreamManager;
 
-    public UsersController(IEventStreamManager<DomainSnapshot> streamManager)
+    public UsersController(
+        IEventStreamManager<UserAggregate> userStreamManager,
+        IEventStreamManager<DomainSnapshot> domainStreamManager)
     {
-        _streamManager = streamManager;
+        _userStreamManager = userStreamManager;
+        _domainStreamManager = domainStreamManager;
     }
 
     /// <summary>
-    /// Gets all users.
+    /// Gets all users (using legacy domain stream for now).
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<IEnumerable<User>>> GetUsers()
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
+        // For listing all users, we still use the domain stream
+        // In a real system, this might be a projection/read model
+        const string domainStreamId = "domain-stream";
+        var snapshot = await _domainStreamManager.GetCurrentStateAsync(domainStreamId);
         return Ok(snapshot?.ActiveUsers ?? Enumerable.Empty<User>());
     }
 
     /// <summary>
-    /// Gets a specific user by ID.
+    /// Gets a specific user by ID using aggregate-based querying.
     /// </summary>
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<User>> GetUser(Guid id)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Users.TryGetValue(id, out var user) == true && !user.IsDeleted)
+        var streamId = $"user-{id}";
+        var aggregate = await _userStreamManager.GetCurrentStateAsync(streamId);
+        
+        if (aggregate?.HasUser == true)
         {
-            return Ok(user);
+            return Ok(aggregate.User);
         }
         return NotFound();
     }
 
     /// <summary>
-    /// Creates a new user.
+    /// Gets relationships for a specific user using aggregate-based querying.
+    /// </summary>
+    [HttpGet("{id:guid}/relationships")]
+    public async Task<ActionResult<IEnumerable<Relationship>>> GetUserRelationships(Guid id)
+    {
+        var streamId = $"user-{id}";
+        var aggregate = await _userStreamManager.GetCurrentStateAsync(streamId);
+        
+        if (aggregate?.HasUser == true)
+        {
+            return Ok(aggregate.ActiveRelationships);
+        }
+        return NotFound();
+    }
+
+    /// <summary>
+    /// Creates a new user using aggregate-based event sourcing.
     /// </summary>
     [HttpPost]
     public async Task<ActionResult<User>> CreateUser(CreateUserRequest request)
     {
         var userId = Guid.NewGuid();
+        var userStreamId = $"user-{userId}";
+        var domainStreamId = "domain-stream";
+        
         var @event = new UserCreated
         {
             UserId = userId,
@@ -61,21 +88,29 @@ public class UsersController : ControllerBase
             Version = 0 // This will be set by the event store
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        var snapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
-        var user = snapshot?.Users.GetValueOrDefault(userId);
+        // Append to both aggregate stream and domain stream (for backward compatibility and listing)
+        var userCurrentVersion = await GetCurrentVersionAsync(userStreamId);
+        var domainCurrentVersion = await GetCurrentVersionAsync(domainStreamId);
         
+        var userAggregate = await _userStreamManager.AppendEventAsync(userStreamId, @event, userCurrentVersion);
+        await _domainStreamManager.AppendEventAsync(domainStreamId, @event, domainCurrentVersion);
+        
+        var user = userAggregate?.User;
         return user != null ? CreatedAtAction(nameof(GetUser), new { id = userId }, user) : StatusCode(500);
     }
 
     /// <summary>
-    /// Updates an existing user.
+    /// Updates an existing user using aggregate-based event sourcing.
     /// </summary>
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<User>> UpdateUser(Guid id, UpdateUserRequest request)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Users.TryGetValue(id, out var existingUser) != true || existingUser.IsDeleted)
+        var userStreamId = $"user-{id}";
+        var domainStreamId = "domain-stream";
+        
+        // Check if user exists in aggregate
+        var aggregate = await _userStreamManager.GetCurrentStateAsync(userStreamId);
+        if (aggregate?.HasUser != true)
         {
             return NotFound();
         }
@@ -90,21 +125,29 @@ public class UsersController : ControllerBase
             Version = 0 // This will be set by the event store
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        var updatedSnapshot = await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
-        var updatedUser = updatedSnapshot?.Users.GetValueOrDefault(id);
+        // Append to both aggregate stream and domain stream
+        var userCurrentVersion = await GetCurrentVersionAsync(userStreamId);
+        var domainCurrentVersion = await GetCurrentVersionAsync(domainStreamId);
         
+        var updatedAggregate = await _userStreamManager.AppendEventAsync(userStreamId, @event, userCurrentVersion);
+        await _domainStreamManager.AppendEventAsync(domainStreamId, @event, domainCurrentVersion);
+        
+        var updatedUser = updatedAggregate?.User;
         return updatedUser != null ? Ok(updatedUser) : StatusCode(500);
     }
 
     /// <summary>
-    /// Deletes a user (soft delete).
+    /// Deletes a user (soft delete) using aggregate-based event sourcing.
     /// </summary>
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult> DeleteUser(Guid id)
     {
-        var snapshot = await _streamManager.GetCurrentStateAsync(StreamId);
-        if (snapshot?.Users.TryGetValue(id, out var existingUser) != true || existingUser.IsDeleted)
+        var userStreamId = $"user-{id}";
+        var domainStreamId = "domain-stream";
+        
+        // Check if user exists in aggregate
+        var aggregate = await _userStreamManager.GetCurrentStateAsync(userStreamId);
+        if (aggregate?.HasUser != true)
         {
             return NotFound();
         }
@@ -115,16 +158,21 @@ public class UsersController : ControllerBase
             Version = 0 // This will be set by the event store
         };
 
-        var currentVersion = await GetCurrentVersionAsync();
-        await _streamManager.AppendEventAsync(StreamId, @event, currentVersion);
+        // Append to both aggregate stream and domain stream
+        var userCurrentVersion = await GetCurrentVersionAsync(userStreamId);
+        var domainCurrentVersion = await GetCurrentVersionAsync(domainStreamId);
+        
+        await _userStreamManager.AppendEventAsync(userStreamId, @event, userCurrentVersion);
+        await _domainStreamManager.AppendEventAsync(domainStreamId, @event, domainCurrentVersion);
+        
         return NoContent();
     }
 
-    private async Task<long> GetCurrentVersionAsync()
+    private async Task<long> GetCurrentVersionAsync(string streamId)
     {
         // Get the current stream version (-1 if stream doesn't exist)
         var eventStore = HttpContext.RequestServices.GetRequiredService<IEventStore>();
-        return await eventStore.GetStreamVersionAsync(StreamId);
+        return await eventStore.GetStreamVersionAsync(streamId);
     }
 }
 
