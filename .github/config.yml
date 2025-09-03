@@ -1,0 +1,11 @@
+# Configuration for https://github.com/settings/security_analysis
+# This file enables GitHub's built-in security features for the repository
+
+blank_issues_enabled: false
+contact_links:
+  - name: 🤔 Question or Discussion
+    url: https://github.com/alexwiese/StreamDingo/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 📚 Documentation
+    url: https://alexwiese.github.io/StreamDingo/
+    about: Read the comprehensive documentation and API reference
