@@ -1,5 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Order;
+using StreamDingo.Tests;
 
 namespace StreamDingo.Benchmarks;
 
@@ -24,7 +25,7 @@ public class CiEssentialBenchmarks
         _events = new List<object>();
         for (int i = 0; i < 100; i++)  // Reduced from 1000
         {
-            _events.Add(new TestEvent($"Event {i}", i));
+            _events.Add(new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, i, i % 10));
         }
     }
 
@@ -51,12 +52,12 @@ public class CiEssentialBenchmarks
     [Arguments(100)]
     public void ReplayEventsCore(int eventCount)
     {
-        var state = new TestState("Initial", 0);
+        var state = new CounterSnapshot { Value = 0, EventCount = 0 };
         for (int i = 0; i < Math.Min(eventCount, _events.Count); i++)
         {
-            if (_events[i] is TestEvent evt)
+            if (_events[i] is CounterIncrementedEvent evt)
             {
-                state = state with { Name = evt.Name, Value = evt.Value };
+                state = new CounterSnapshot { Value = state.Value + evt.Amount, EventCount = state.EventCount + 1 };
             }
         }
     }
@@ -80,19 +81,19 @@ public class CiEssentialBenchmarks
     [Arguments(100)]  // Reduced for CI
     public void MemoryAllocationCore(int objectCount)
     {
-        var events = new List<TestEvent>(objectCount);
-        var states = new List<TestState>(objectCount);
+        var events = new List<CounterIncrementedEvent>(objectCount);
+        var states = new List<CounterSnapshot>(objectCount);
 
         for (int i = 0; i < objectCount; i++)
         {
-            events.Add(new TestEvent($"Event {i}", i));
-            states.Add(new TestState($"State {i}", i));
+            events.Add(new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, i, i % 10));
+            states.Add(new CounterSnapshot { Value = i, EventCount = i });
         }
 
         // Simulate processing
         foreach (var evt in events)
         {
-            var state = new TestState(evt.Name, evt.Value);
+            var state = new CounterSnapshot { Value = evt.Amount, EventCount = 1 };
         }
     }
 
@@ -104,16 +105,16 @@ public class CiEssentialBenchmarks
     [Arguments(50)]  // Reduced for CI
     public void SerializationCore(int eventCount)
     {
-        var events = new List<TestEvent>();
+        var events = new List<CounterIncrementedEvent>();
         for (int i = 0; i < eventCount; i++)
         {
-            events.Add(new TestEvent($"Event {i}", i));
+            events.Add(new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, i, i % 10));
         }
 
         foreach (var evt in events)
         {
             string json = System.Text.Json.JsonSerializer.Serialize(evt);
-            var deserialized = System.Text.Json.JsonSerializer.Deserialize<TestEvent>(json);
+            var deserialized = System.Text.Json.JsonSerializer.Deserialize<CounterIncrementedEvent>(json);
         }
     }
 }
@@ -127,7 +128,7 @@ public class CiEssentialBenchmarks
 [SimpleJob]
 public class CiMinimalBenchmarks
 {
-    private readonly List<object> _events = new() { new TestEvent("Test", 1) };
+    private readonly List<object> _events = new() { new CounterIncrementedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, 1, 1) };
     private readonly byte[] _data = System.Text.Encoding.UTF8.GetBytes("Test");
 
     [Benchmark]
